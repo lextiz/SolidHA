@@ -43,11 +43,11 @@ def test_home_assistant_container() -> None:
     )
     base_url = f"http://localhost:{port}"
     try:
-        resp: requests.Response | None = None
+        # Wait for the onboarding endpoint to come up
         for _ in range(180):
             try:
-                resp = requests.get(f"{base_url}/api/", timeout=1)
-                if resp.status_code in (200, 401):
+                resp = requests.get(f"{base_url}/api/onboarding", timeout=1)
+                if resp.status_code == 200:
                     break
             except requests.ConnectionError:
                 pass
@@ -55,10 +55,40 @@ def test_home_assistant_container() -> None:
         else:
             pytest.fail("Home Assistant API did not respond in time")
 
-        assert resp is not None
-        if resp.status_code == 200:
-            assert resp.json().get("message") == "API running."
-        else:
-            assert "Unauthorized" in resp.text
+        # Create the initial user and exchange the auth code for a token
+        client_id = "http://example"
+        resp = requests.post(
+            f"{base_url}/api/onboarding/users",
+            json={
+                "client_id": client_id,
+                "name": "Test Name",
+                "username": "test-user",
+                "password": "test-pass",
+                "language": "en",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        auth_code = resp.json()["auth_code"]
+
+        resp = requests.post(
+            f"{base_url}/auth/token",
+            data={
+                "client_id": client_id,
+                "grant_type": "authorization_code",
+                "code": auth_code,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        token = resp.json()["access_token"]
+
+        resp = requests.get(
+            f"{base_url}/api/",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        assert resp.json().get("message") == "API running."
     finally:
         subprocess.run(["docker", "stop", container_name], check=False)
