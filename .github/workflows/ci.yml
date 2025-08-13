@@ -38,7 +38,7 @@ jobs:
       - name: Build CI image
         run: docker build -f Dockerfile.ci .
       - name: Build add-on image
-        run: docker build addons/ha-llm-ops
+        run: docker build -f addons/ha-llm-ops/Dockerfile .
 
   docs:
     runs-on: ubuntu-latest

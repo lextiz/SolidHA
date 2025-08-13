@@ -7,5 +7,11 @@ arch:
   - amd64
 startup: application
 boot: auto
-options: {}
-schema: {}
+options:
+  log_level: info
+  buffer_size: 100
+  incident_dir: /data/incidents
+schema:
+  log_level: list(trace|debug|info|warning|error|fatal)?
+  buffer_size: int
+  incident_dir: str
