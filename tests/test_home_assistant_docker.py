@@ -43,6 +43,7 @@ def test_home_assistant_container() -> None:
     )
     base_url = f"http://localhost:{port}"
     try:
+        resp: requests.Response | None = None
         for _ in range(180):
             try:
                 resp = requests.get(f"{base_url}/api/", timeout=1)
@@ -53,5 +54,11 @@ def test_home_assistant_container() -> None:
             time.sleep(1)
         else:
             pytest.fail("Home Assistant API did not respond in time")
+
+        assert resp is not None
+        if resp.status_code == 200:
+            assert resp.json().get("message") == "API running."
+        else:
+            assert "Unauthorized" in resp.text
     finally:
         subprocess.run(["docker", "stop", container_name], check=False)
