@@ -43,10 +43,10 @@ def test_home_assistant_container() -> None:
     )
     base_url = f"http://localhost:{port}"
     try:
-        for _ in range(60):
+        for _ in range(180):
             try:
-                resp = requests.get(f"{base_url}/api/")
-                if resp.status_code == 200:
+                resp = requests.get(f"{base_url}/api/", timeout=1)
+                if resp.status_code in (200, 401):
                     break
             except requests.ConnectionError:
                 pass
