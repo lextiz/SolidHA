@@ -1,5 +1,7 @@
-
 # HA LLM Ops Add-on (Alpha)
+
+[![CI](https://github.com/YourOrg/SolidHA/actions/workflows/ci.yml/badge.svg)](https://github.com/YourOrg/SolidHA/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/YourOrg/SolidHA/branch/main/graph/badge.svg)](https://codecov.io/gh/YourOrg/SolidHA)
 
 > **Goal:** A Home Assistant (HA) Supervisor add-on that continuously observes your HA system, performs LLM-driven root cause analysis (RCA) for instability, proposes safe fixes, and—optionally—executes guarded remediations after taking a backup.
 
