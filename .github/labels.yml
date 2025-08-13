@@ -1,0 +1,9 @@
+- name: area/ci
+  color: 0E8A16
+  description: Continuous integration related changes
+- name: area/docs
+  color: 1D76DB
+  description: Documentation changes
+- name: good first issue
+  color: 7057ff
+  description: Good for newcomers

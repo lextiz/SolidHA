@@ -1,0 +1,11 @@
+name: HA LLM Ops
+version: 0.0.0
+slug: ha_llm_ops
+description: Placeholder HA LLM Ops add-on.
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: auto
+options: {}
+schema: {}
