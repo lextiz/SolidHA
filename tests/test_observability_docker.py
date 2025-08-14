@@ -55,7 +55,7 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
             "-d",
             "--rm",
             "-p",
-            f"{port}:{port}",
+            f"{port}:8123",
             "-v",
             f"{config_dir}:/config",  # type: ignore[arg-type]
             "--name",
