@@ -216,109 +216,137 @@ ha-llm-ops/
 
 Below are ready-to-run bite-sized tasks for the autonomous agent. Each bullet is intended to be a single small PR.
 
-### M0.0 – Testability & CI
+### M1.0 – Analysis skeleton & contracts
 
-1. **Task:** Initialize repo scaffolding.
+1.  **Task:** Create `agent/analysis/__init__.py` and `agent/analysis/types.py`.
+    
+    -   Define typed structures for: `IncidentRef`, `ContextBundle`, `Prompt`, `RcaOutput` (alias of `RcaResult`).
+        
+    -   Add unit tests validating simple constructors and type hints (mypy strict).
+        
+2.  **Task:** Add `agent/analysis/storage.py`.
+    
+    -   Read incident files from `/data/incidents`.
+        
+    -   Map to `IncidentRef` (filename + time range).
+        
+    -   Unit tests with tmpdir fixtures (empty dir, multiple files, malformed line handling).
+        
+3.  **Task:** Add `agent/analysis/context.py`.
+    
+    -   Build `ContextBundle` from recent events around an incident (last N lines), deduplicate noisy repeats, enforce redaction.
+        
+    -   Unit tests: verify redaction, dedupe, size limits.
+        
 
-    - Add `README.md` (this file), `LICENSE` (Apache-2.0), `.gitignore` for Python/Docker/Node, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md` (with disclosure email placeholder).
+### M1.1 – Prompt builder
 
-    - Add `.editorconfig` and basic `.gitattributes`.
+4.  **Task:** Add `agent/analysis/prompt_builder.py`.
+    
+    -   Deterministic prompt from `ContextBundle` + repo/version info + guardrails.
+        
+    -   Export prompt as **pure text** plus a **JSON schema section** (copied from `RcaResult.model_json_schema()`).
+        
+5.  **Task:** Golden tests for prompt builder.
+    
+    -   Create `tests/golden/prompt_input.json` and `tests/golden/prompt_output.txt`.
+        
+    -   Snapshot test ensuring prompt text matches exactly; add an allowlisted small “update snapshot” script.
+        
 
-2. **Task:** Add Python project skeleton for `agent/`.
+### M1.2 – LLM adapters (read-only)
 
-    - Create `agent/pyproject.toml` using `uv` or `poetry` (fallback: `pip-tools`).
+6.  **Task:** Create `agent/analysis/llm/base.py`.
+    
+    -   Define `LLM` protocol: `generate(prompt: str, *, timeout: float) -> str`.
+        
+7.  **Task:** Add `agent/analysis/llm/mock.py`.
+    
+    -   Deterministic stub returning a canned, valid `RcaResult` JSON for tests.
+        
+8.  **Task:** Add `agent/analysis/llm/openai.py` (adapter only).
+    
+    -   Read `OPENAI_API_KEY` from env.
+        
+    -   Compose JSON-only system prompt: “Respond with **only** valid JSON per schema below; no prose.”
+        
+    -   Parse/return raw string (no model validation here).
+        
+    -   Unit tests: environment handling + timeouts (use mock HTTP).
+        
+9.  **Task:** Add `agent/analysis/parse.py`.
+    
+    -   Strict parsing: JSON load → pydantic `RcaResult`.
+        
+    -   Defensive errors surfaced with actionable messages.
+        
+    -   Unit tests with valid/invalid payloads.
+        
 
-    - Dependencies (dev): `pytest`, `ruff`, `mypy`, `pytest-cov`; (runtime for later) `websockets`, `httpx`, `pydantic`.
+### M1.3 – Analysis runner & endpoints
 
-    - Add `agent/src/ha_llm_ops/__init__.py` and `agent/tests/test_sanity.py` with a hello-world test.
+10.  **Task:** Add `agent/analysis/runner.py`.
+    
+    -   Scheduler: scan for new incident files; rate-limit; enqueue to analyze; backoff on failures.
+        
+    -   Pluggable LLM (`MOCK` default, `OPENAI` if env present).
+        
+    -   Persist analyses as JSONL in `/data/analyses/analyses_*.jsonl` (size-rotated).
+        
+    -   Unit tests: queueing, rate-limit, rotation.
+        
+11.  **Task:** Extend HTTP server in `agent/devux.py`.
+    
+    -   Add GET `/analyses` → returns latest analyses (filenames or inline last N).
+        
+    -   Unit tests for handler (404, empty, non-empty).
+        
+12.  **Task:** Wire the runner in `addons/ha-llm-ops/agent/__main__.py`.
+    
+    -   Start analysis runner alongside observer and HTTP server.
+        
+    -   Config via env: `ANALYSIS_RATE_SECONDS`, `ANALYSIS_MAX_LINES`, `LLM_BACKEND`.
+        
+    -   Unit test: start/stop with mock LLM; verify runner called.
+        
 
-3. **Task:** Add `Makefile` for common dev commands.
+### M1.4 – End-to-end & integration
 
-    - Targets: `bootstrap`, `fmt`, `lint`, `typecheck`, `test`, `build-addon`, `clean`.
+13.  **Task:** Add E2E test with **mock LLM** (no network).
+    
+    -   Create a synthetic incident file; run runner once; assert a valid `RcaResult` stored; verify `/analyses` lists it.
+        
+14.  **Task:** Extend Docker-based HA integration test.
+    
+    -   After generating at least one incident, run the analysis once with mock LLM; assert a persisted analysis appears.
+        
+15.  **Task:** Coverage & CI
+    
+    -   Raise coverage threshold to 85% for analysis modules.
+        
+    -   Ensure CI skips real LLM tests unless `OPENAI_API_KEY` is set (matrix job optional).
+        
 
-4. **Task:** Configure linters & types.
+### M1.5 – Minimal UI
 
-    - Add `ruff.toml` (enable common rules), `mypy.ini` (strict-ish), and `pyproject` tool configs.
+16.  **Task:** Add example Lovelace card YAML (docs/):
+    
+    -   Panel listing `/analyses` newest-first; clicking an item shows parsed `RcaResult`.
+        
+17.  **Task:** Documentation: user & dev guides.
+    
+    -   How to enable mock vs. real LLM, env vars, expected endpoints, sample flows.
+        
 
-5. **Task:** Add Dockerfiles for CI.
+----------
 
-    - `./Dockerfile.ci` that installs python, dependencies, and runs tests.
+## Non-Goals for M1
 
-    - Ensure deterministic builds (pin base image tag).
-
-6. **Task:** GitHub Actions – CI pipeline.
-
-    - Workflow `.github/workflows/ci.yml` with jobs:
-
-        - **lint**: ruff + mypy.
-
-        - **test**: run pytest with coverage and upload report artifact.
-
-        - **docker**: build `Dockerfile.ci` and also build add-on image (stub) to validate Docker builds.
-
-    - Triggers: on PRs and pushes to `main`.
-
-7. **Task:** Add PR Template & labels.
-
-    - `.github/pull_request_template.md` with checklist from this README.
-
-    - Default labels: `area/ci`, `area/docs`, `good first issue`.
-
-8. **Task:** Pre-commit hooks.
-
-    - Configure `.pre-commit-config.yaml` for ruff, trailing-whitespace, end-of-file-fixer, detect-private-keys.
-
-9. **Task:** Minimal add-on stub for build validation.
-
-    - Create `addons/ha-llm-ops/config.yaml` with placeholder metadata and schema.
-
-    - Create `addons/ha-llm-ops/Dockerfile` that just prints hello and exits (until M0.1).
-
-10. **Task:** Status badge wiring.
-
-    - Add CI status badge and codecov placeholder to README.
-
-11. **Task:** Documentation checks.
-
-    - Add a doc linter job (markdownlint) via `node` action or a container.
-
-12. **Task:** Repository governance.
-
-    - Enable branch protection for `main` (required checks, linear history, signed commits optional).
-
-> **Definition of Done (M0.0):** CI is green; `make test` and `docker build` succeed locally; PR template enforces small, tested changes; minimal add-on image builds in CI.
-
-### M0.1 – Add-on Skeleton
-
-1. **Task:** Implement real add-on entrypoint script (`/run.sh`) that starts the agent with a no-op loop.
-
-2. **Task:** Add healthcheck and logs to stdout; verify Supervisor expectations.
-
-3. **Task:** Parameterize config options in `config.yaml` (log level, buffer size, incident dir).
-
-### M0.2 – Observability (Read-only)
-
-1. **Task:** Implement WebSocket client with reconnect/backoff.
-
-2. **Task:** Subscribe to error/trace events and write rotating JSONL to `/data/incidents/`.
-
-3. **Task:** Add redaction utility (token patterns, secrets.yaml keys).
-
-4. **Task:** Add unit tests with fixtures for typical HA events and error samples.
-
-### M0.3 – RCA Contract
-
-1. **Task:** Define `contracts/rca_v1.json` schema (pydantic models + JSON schema export).
-
-2. **Task:** Add schema validator + golden test vectors.
-
-3. **Task:** Implement prompt builder (no API calls yet) and snapshot tests of rendered prompts.
-
-### M0.4 – Dev UX
-
-1. **Task:** Expose a minimal HTTP endpoint from the agent to list incident bundles.
-
-2. **Task:** Provide an example Lovelace card YAML that polls the endpoint.
+-   No mutating actions (service calls, restarts, reauth)
+    
+-   No policy file or executor (M2)
+    
+-   No telemetry collection
 
 ----------
 
