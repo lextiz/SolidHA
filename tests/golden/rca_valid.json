@@ -1,0 +1,17 @@
+{
+  "root_cause": "misconfigured integration X",
+  "impact": "automation Y fails to run",
+  "confidence": 0.8,
+  "candidate_actions": [
+    {
+      "action": "reload integration X",
+      "rationale": "reset configuration"
+    }
+  ],
+  "risk": "low",
+  "tests": [
+    "integration X responds",
+    "automation Y executes"
+  ]
+}
+

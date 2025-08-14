@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "CandidateAction": {
+      "description": "A potential action to mitigate the incident.",
+      "properties": {
+        "action": {
+          "description": "Short description of the action",
+          "title": "Action",
+          "type": "string"
+        },
+        "rationale": {
+          "description": "Why the action may help",
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "rationale"
+      ],
+      "title": "CandidateAction",
+      "type": "object"
+    }
+  },
+  "description": "LLM-provided root cause analysis result.",
+  "properties": {
+    "root_cause": {
+      "description": "Primary reason for the incident",
+      "title": "Root Cause",
+      "type": "string"
+    },
+    "impact": {
+      "description": "Observed impact on the system",
+      "title": "Impact",
+      "type": "string"
+    },
+    "confidence": {
+      "description": "Confidence score between 0 and 1",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "candidate_actions": {
+      "description": "Proposed remediation steps",
+      "items": {
+        "$ref": "#/$defs/CandidateAction"
+      },
+      "title": "Candidate Actions",
+      "type": "array"
+    },
+    "risk": {
+      "description": "Overall risk assessment of acting",
+      "title": "Risk",
+      "type": "string"
+    },
+    "tests": {
+      "description": "Checks to verify the issue is resolved",
+      "items": {
+        "type": "string"
+      },
+      "title": "Tests",
+      "type": "array"
+    }
+  },
+  "required": [
+    "root_cause",
+    "impact",
+    "confidence",
+    "risk"
+  ],
+  "title": "RcaResult",
+  "type": "object"
+}
