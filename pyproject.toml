@@ -8,7 +8,10 @@ version = "0.0.0"
 description = "HA LLM Ops agent"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "websockets>=12.0",
+    "PyYAML>=6.0",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -18,7 +21,8 @@ dev = [
     "mypy>=1.7",
     "pre-commit>=3.4",
     "requests>=2.31",
-    "types-requests"
+    "types-requests",
+    "types-PyYAML",
 ]
 
 [tool.ruff]
