@@ -218,144 +218,116 @@ Below are ready-to-run bite-sized tasks for the autonomous agent. Each bullet is
 
 ### M1.0 – Analysis skeleton & contracts
 
-1.  **Task:** Create `agent/analysis/__init__.py` and `agent/analysis/types.py`.
-    
-    -   Define typed structures for: `IncidentRef`, `ContextBundle`, `Prompt`, `RcaOutput` (alias of `RcaResult`).
-        
-    -   Add unit tests validating simple constructors and type hints (mypy strict).
-        
-2.  **Task:** Add `agent/analysis/storage.py`.
-    
-    -   Read incident files from `/data/incidents`.
-        
-    -   Map to `IncidentRef` (filename + time range).
-        
-    -   Unit tests with tmpdir fixtures (empty dir, multiple files, malformed line handling).
-        
-3.  **Task:** Add `agent/analysis/context.py`.
-    
-    -   Build `ContextBundle` from recent events around an incident (last N lines), deduplicate noisy repeats, enforce redaction.
-        
-    -   Unit tests: verify redaction, dedupe, size limits.
-        
+1. **Task:** Create `agent/analysis/__init__.py` and `agent/analysis/types.py`.
+
+    - Define typed structures for: `IncidentRef`, `ContextBundle`, `Prompt`, `RcaOutput` (alias of `RcaResult`).
+    - Add unit tests validating simple constructors and type hints (mypy strict).
+
+1. **Task:** Add `agent/analysis/storage.py`.
+
+    - Read incident files from `/data/incidents`.
+    - Map to `IncidentRef` (filename + time range).
+    - Unit tests with tmpdir fixtures (empty dir, multiple files, malformed line handling).
+
+1. **Task:** Add `agent/analysis/context.py`.
+
+    - Build `ContextBundle` from recent events around an incident (last N lines), deduplicate noisy repeats, enforce redaction.
+    - Unit tests: verify redaction, dedupe, size limits.
 
 ### M1.1 – Prompt builder
 
-4.  **Task:** Add `agent/analysis/prompt_builder.py`.
-    
-    -   Deterministic prompt from `ContextBundle` + repo/version info + guardrails.
-        
-    -   Export prompt as **pure text** plus a **JSON schema section** (copied from `RcaResult.model_json_schema()`).
-        
-5.  **Task:** Golden tests for prompt builder.
-    
-    -   Create `tests/golden/prompt_input.json` and `tests/golden/prompt_output.txt`.
-        
-    -   Snapshot test ensuring prompt text matches exactly; add an allowlisted small “update snapshot” script.
-        
+1. **Task:** Add `agent/analysis/prompt_builder.py`.
+
+    - Deterministic prompt from `ContextBundle` + repo/version info + guardrails.
+    - Export prompt as **pure text** plus a **JSON schema section** (copied from `RcaResult.model_json_schema()`).
+
+1. **Task:** Golden tests for prompt builder.
+
+    - Create `tests/golden/prompt_input.json` and `tests/golden/prompt_output.txt`.
+    - Snapshot test ensuring prompt text matches exactly; add an allowlisted small “update snapshot” script.
 
 ### M1.2 – LLM adapters (read-only)
 
-6.  **Task:** Create `agent/analysis/llm/base.py`.
-    
-    -   Define `LLM` protocol: `generate(prompt: str, *, timeout: float) -> str`.
-        
-7.  **Task:** Add `agent/analysis/llm/mock.py`.
-    
-    -   Deterministic stub returning a canned, valid `RcaResult` JSON for tests.
-        
-8.  **Task:** Add `agent/analysis/llm/openai.py` (adapter only).
-    
-    -   Read `OPENAI_API_KEY` from env.
-        
-    -   Compose JSON-only system prompt: “Respond with **only** valid JSON per schema below; no prose.”
-        
-    -   Parse/return raw string (no model validation here).
-        
-    -   Unit tests: environment handling + timeouts (use mock HTTP).
-        
-9.  **Task:** Add `agent/analysis/parse.py`.
-    
-    -   Strict parsing: JSON load → pydantic `RcaResult`.
-        
-    -   Defensive errors surfaced with actionable messages.
-        
-    -   Unit tests with valid/invalid payloads.
-        
+1. **Task:** Create `agent/analysis/llm/base.py`.
+
+    - Define `LLM` protocol: `generate(prompt: str, *, timeout: float) -> str`.
+
+1. **Task:** Add `agent/analysis/llm/mock.py`.
+
+    - Deterministic stub returning a canned, valid `RcaResult` JSON for tests.
+
+1. **Task:** Add `agent/analysis/llm/openai.py` (adapter only).
+
+    - Read `OPENAI_API_KEY` from env.
+    - Compose JSON-only system prompt: “Respond with **only** valid JSON per schema below; no prose.”
+    - Parse/return raw string (no model validation here).
+    - Unit tests: environment handling + timeouts (use mock HTTP).
+
+1. **Task:** Add `agent/analysis/parse.py`.
+
+    - Strict parsing: JSON load → pydantic `RcaResult`.
+    - Defensive errors surfaced with actionable messages.
+    - Unit tests with valid/invalid payloads.
 
 ### M1.3 – Analysis runner & endpoints
 
-10.  **Task:** Add `agent/analysis/runner.py`.
-    
-    -   Scheduler: scan for new incident files; rate-limit; enqueue to analyze; backoff on failures.
-        
-    -   Pluggable LLM (`MOCK` default, `OPENAI` if env present).
-        
-    -   Persist analyses as JSONL in `/data/analyses/analyses_*.jsonl` (size-rotated).
-        
-    -   Unit tests: queueing, rate-limit, rotation.
-        
-11.  **Task:** Extend HTTP server in `agent/devux.py`.
-    
-    -   Add GET `/analyses` → returns latest analyses (filenames or inline last N).
-        
-    -   Unit tests for handler (404, empty, non-empty).
-        
-12.  **Task:** Wire the runner in `addons/ha-llm-ops/agent/__main__.py`.
-    
-    -   Start analysis runner alongside observer and HTTP server.
-        
-    -   Config via env: `ANALYSIS_RATE_SECONDS`, `ANALYSIS_MAX_LINES`, `LLM_BACKEND`.
-        
-    -   Unit test: start/stop with mock LLM; verify runner called.
-        
+1. **Task:** Add `agent/analysis/runner.py`.
+
+    - Scheduler: scan for new incident files; rate-limit; enqueue to analyze; backoff on failures.
+    - Pluggable LLM (`MOCK` default, `OPENAI` if env present).
+    - Persist analyses as JSONL in `/data/analyses/analyses_*.jsonl` (size-rotated).
+    - Unit tests: queueing, rate-limit, rotation.
+
+1. **Task:** Extend HTTP server in `agent/devux.py`.
+
+    - Add GET `/analyses` → returns latest analyses (filenames or inline last N).
+    - Unit tests for handler (404, empty, non-empty).
+
+1. **Task:** Wire the runner in `addons/ha-llm-ops/agent/__main__.py`.
+
+    - Start analysis runner alongside observer and HTTP server.
+    - Config via env: `ANALYSIS_RATE_SECONDS`, `ANALYSIS_MAX_LINES`, `LLM_BACKEND`.
+    - Unit test: start/stop with mock LLM; verify runner called.
 
 ### M1.4 – End-to-end & integration
 
-13.  **Task:** Add E2E test with **mock LLM** (no network).
-    
-    -   Create a synthetic incident file; run runner once; assert a valid `RcaResult` stored; verify `/analyses` lists it.
-        
-14.  **Task:** Extend Docker-based HA integration test.
-    
-    -   After generating at least one incident, run the analysis once with mock LLM; assert a persisted analysis appears.
-        
-15.  **Task:** Coverage & CI
-    
-    -   Raise coverage threshold to 85% for analysis modules.
-        
-    -   Ensure CI skips real LLM tests unless `OPENAI_API_KEY` is set (matrix job optional).
-        
+1. **Task:** Add E2E test with **mock LLM** (no network).
+
+    - Create a synthetic incident file; run runner once; assert a valid `RcaResult` stored; verify `/analyses` lists it.
+
+1. **Task:** Extend Docker-based HA integration test.
+
+    - After generating at least one incident, run the analysis once with mock LLM; assert a persisted analysis appears.
+
+1. **Task:** Coverage & CI
+
+    - Raise coverage threshold to 85% for analysis modules.
+    - Ensure CI skips real LLM tests unless `OPENAI_API_KEY` is set (matrix job optional).
 
 ### M1.5 – Minimal UI
 
-16.  **Task:** Add example Lovelace card YAML (docs/):
-    
-    -   Panel listing `/analyses` newest-first; clicking an item shows parsed `RcaResult`.
-        
-17.  **Task:** Documentation: user & dev guides.
-    
-    -   How to enable mock vs. real LLM, env vars, expected endpoints, sample flows.
-        
+1. **Task:** Add example Lovelace card YAML (docs/):
+
+    - Panel listing `/analyses` newest-first; clicking an item shows parsed `RcaResult`.
+
+1. **Task:** Documentation: user & dev guides.
+
+    - How to enable mock vs. real LLM, env vars, expected endpoints, sample flows.
 
 ----------
 
 ## Non-Goals for M1
 
--   No mutating actions (service calls, restarts, reauth)
-    
--   No policy file or executor (M2)
-    
--   No telemetry collection
+- No mutating actions (service calls, restarts, reauth)
+- No policy file or executor (M2)
+- No telemetry collection
 
 ----------
 
 ## Environment Variables (planned)
 
 - `HA_WS_URL` – HA WebSocket URL (dev mode only; add-on will auto-use Supervisor token/URL).
-
 - `SUPERVISOR_TOKEN` – injected by HA when running as an add-on (do not set manually).
-
 - `INCIDENT_DIR` – default `/data/incidents`.
 
 - `LOG_LEVEL` – default `INFO`.
