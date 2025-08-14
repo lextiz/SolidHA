@@ -7,6 +7,7 @@ import logging
 import os
 from pathlib import Path
 
+from .devux import start_http_server
 from .observability import observe
 
 
@@ -26,6 +27,7 @@ def main() -> None:
         ws_url,
     )
     Path("/tmp/healthy").touch()
+    start_http_server(Path(incident_dir))
     asyncio.run(observe(ws_url, token, Path(incident_dir)))
 
 
