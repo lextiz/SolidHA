@@ -37,6 +37,7 @@ strict = true
 
 [tool.pytest.ini_options]
 markers = ["integration: mark tests requiring Docker"]
+pythonpath = ["."]
 
 [tool.setuptools]
 packages = ["agent"]
