@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import json
+from typing import Any, Mapping
 
 from .contracts import RcaResult
 
 
-def build_rca_prompt(context: dict) -> str:
+def build_rca_prompt(context: Mapping[str, Any]) -> str:
     """Return a prompt instructing the LLM to produce an :class:`RcaResult`.
 
     Parameters
     ----------
-    context: dict
+    context: Mapping[str, Any]
         Incident context gathered from Home Assistant.
     """
 

@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pydantic import BaseModel, Field, confloat
+from typing import Annotated
+
+from pydantic import BaseModel, Field
 
 
 class CandidateAction(BaseModel):
@@ -20,9 +22,9 @@ class RcaResult(BaseModel):
 
     root_cause: str = Field(..., description="Primary reason for the incident")
     impact: str = Field(..., description="Observed impact on the system")
-    confidence: confloat(ge=0.0, le=1.0) = Field(
-        ..., description="Confidence score between 0 and 1"
-    )
+    confidence: Annotated[
+        float, Field(ge=0.0, le=1.0, description="Confidence score between 0 and 1")
+    ]
     candidate_actions: list[CandidateAction] = Field(
         default_factory=list, description="Proposed remediation steps"
     )
