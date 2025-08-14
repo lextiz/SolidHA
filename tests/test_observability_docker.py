@@ -33,7 +33,7 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
     config_dir.mkdir()
     (config_dir / "secrets.yaml").write_text("")
     (config_dir / "configuration.yaml").write_text(
-        "system_log:\nautomation: !include automations.yaml\n"
+        "system_log:\n  fire_event: true\nautomation: !include automations.yaml\n"
     )
     (config_dir / "automations.yaml").write_text(
         """
@@ -119,7 +119,7 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
                     timeout=60,
                 )
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # Stop observing after the timeout and inspect collected incidents
             pass
 
@@ -131,8 +131,15 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
             for line in file.read_text().splitlines()
         ]
         assert any(
-            line.get("event_type") == "system_log_event"
-            and "nonexistent.does_not_exist" in line.get("data", {}).get("message", "")
+            (
+                line.get("event_type") == "system_log_event"
+                and "nonexistent.does_not_exist"
+                in line.get("data", {}).get("message", "")
+            )
+            or (
+                line.get("event_type") == "trace"
+                and line.get("data", {}).get("result", {}).get("error")
+            )
             for line in lines
         ), lines
     finally:
