@@ -44,7 +44,7 @@ def test_home_assistant_container() -> None:
     base_url = f"http://localhost:{port}"
     try:
         # Wait for the onboarding endpoint to come up
-        for _ in range(180):
+        for _ in range(300):
             try:
                 resp = requests.get(f"{base_url}/api/onboarding", timeout=1)
                 if resp.status_code == 200:

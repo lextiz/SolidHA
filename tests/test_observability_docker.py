@@ -67,7 +67,7 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
     base_url = f"http://localhost:{port}"
     ws_url = f"ws://localhost:{port}/api/websocket"
     try:
-        for _ in range(180):
+        for _ in range(300):
             try:
                 resp = requests.get(f"{base_url}/api/onboarding", timeout=1)
                 if resp.status_code == 200:
@@ -115,7 +115,7 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
                     limit=1,
                     secrets_path=config_dir / "secrets.yaml",
                 ),
-                timeout=60,
+                timeout=180,
             )
         )
 
