@@ -75,8 +75,34 @@ async def observe(
                         continue
                     event = data.get("event", {})
                     etype = event.get("event_type")
-                    if etype not in {"system_log_event", "trace"}:
+                    edata = event.get("data", {})
+
+                    should_log = False
+
+                    if etype == "system_log_event":
+                        level = edata.get("level")
+                        if isinstance(level, int):
+                            should_log = level >= 40
+                        elif isinstance(level, str):
+                            should_log = level.upper() in {"ERROR", "CRITICAL"}
+                    elif etype == "trace":
+                        result = edata.get("result")
+                        if isinstance(result, dict):
+                            if result.get("success") is False or result.get("error"):
+                                should_log = True
+                        elif edata.get("error"):
+                            should_log = True
+                    elif etype == "state_changed":
+                        new_state = edata.get("new_state") or {}
+                        if (
+                            isinstance(new_state, dict)
+                            and new_state.get("state") == "unavailable"
+                        ):
+                            should_log = True
+
+                    if not should_log:
                         continue
+
                     redacted = redact(event, secret_keys)
                     logger.write(redacted)
                     processed += 1

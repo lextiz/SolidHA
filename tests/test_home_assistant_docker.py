@@ -7,7 +7,6 @@ import subprocess
 import time
 
 import pytest
-import requests
 
 
 def _docker_available() -> bool:
@@ -25,6 +24,8 @@ def _docker_available() -> bool:
 @pytest.mark.skipif(not _docker_available(), reason="Docker daemon not available")
 def test_home_assistant_container() -> None:
     """Start a Home Assistant container and verify the API responds."""
+    import requests
+
     container_name = "ha-test"
     port = "8123"
     subprocess.run(
@@ -44,7 +45,7 @@ def test_home_assistant_container() -> None:
     base_url = f"http://localhost:{port}"
     try:
         # Wait for the onboarding endpoint to come up
-        for _ in range(180):
+        for _ in range(300):
             try:
                 resp = requests.get(f"{base_url}/api/onboarding", timeout=1)
                 if resp.status_code == 200:
