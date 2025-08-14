@@ -7,7 +7,6 @@ import subprocess
 import time
 
 import pytest
-import requests
 
 
 def _docker_available() -> bool:
@@ -25,6 +24,8 @@ def _docker_available() -> bool:
 @pytest.mark.skipif(not _docker_available(), reason="Docker daemon not available")
 def test_home_assistant_container() -> None:
     """Start a Home Assistant container and verify the API responds."""
+    import requests
+
     container_name = "ha-test"
     port = "8123"
     subprocess.run(

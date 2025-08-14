@@ -6,7 +6,6 @@ import time
 from pathlib import Path
 
 import pytest
-import requests
 
 from agent.observability import observe
 
@@ -28,11 +27,13 @@ def _docker_available() -> bool:
 @pytest.mark.skipif(not _docker_available(), reason="Docker daemon not available")
 def test_observe_automation_failure(tmp_path: Path) -> None:
     """Ensure observer logs an automation failure from a real HA container."""
+    import requests
+
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     (config_dir / "secrets.yaml").write_text("")
     (config_dir / "configuration.yaml").write_text(
-        "automation: !include automations.yaml\n"
+        "system_log:\nautomation: !include automations.yaml\n"
     )
     (config_dir / "automations.yaml").write_text(
         """
@@ -106,18 +107,21 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
         token = resp.json()["access_token"]
 
         incident_dir = tmp_path / "incidents"
-        asyncio.run(
-            asyncio.wait_for(
-                observe(
-                    ws_url,
-                    token=token,
-                    incident_dir=incident_dir,
-                    limit=1,
-                    secrets_path=config_dir / "secrets.yaml",
-                ),
-                timeout=180,
+        try:
+            asyncio.run(
+                asyncio.wait_for(
+                    observe(
+                        ws_url,
+                        token=token,
+                        incident_dir=incident_dir,
+                        secrets_path=config_dir / "secrets.yaml",
+                    ),
+                    timeout=60,
+                )
             )
-        )
+        except asyncio.TimeoutError:
+            # Stop observing after the timeout and inspect collected incidents
+            pass
 
         files = list(incident_dir.glob("incidents_*.jsonl"))
         assert files, "No incident files created"
