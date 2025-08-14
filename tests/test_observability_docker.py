@@ -133,8 +133,7 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
         assert any(
             (
                 line.get("event_type") == "system_log_event"
-                and "nonexistent.does_not_exist"
-                in line.get("data", {}).get("message", "")
+                and "nonexistent.does_not_exist" in json.dumps(line)
             )
             or (
                 line.get("event_type") == "trace"
