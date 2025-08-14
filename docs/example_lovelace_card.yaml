@@ -1,0 +1,18 @@
+# Example Lovelace setup polling the agent's incident endpoint.
+#
+# Define a REST sensor in configuration.yaml:
+# sensor:
+#   - platform: rest
+#     name: incident_bundles
+#     resource: http://localhost:8000/incidents
+#     scan_interval: 30
+#
+# Then add this card to your dashboard:
+type: markdown
+title: Agent Incidents
+content: |
+  {% set incidents = states('sensor.incident_bundles') | from_json %}
+  {% for inc in incidents %}
+  - {{ inc }}
+  {% endfor %}
+
