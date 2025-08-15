@@ -8,6 +8,7 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from string import Template
 from urllib.parse import unquote
 
 
@@ -45,7 +46,8 @@ def _last_occurrence(path: Path) -> str:
                     return _format_ts(str(record[key]))
     except Exception:  # pragma: no cover - defensive
         pass
-    return _format_ts(dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.UTC).isoformat())  # noqa: E501
+    ts = dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.UTC).isoformat()
+    return _format_ts(ts)
 
 
 def _load_analyses(directory: Path) -> dict[str, dict[str, object]]:
@@ -70,48 +72,29 @@ def _load_analyses(directory: Path) -> dict[str, dict[str, object]]:
     return mapping
 
 
+TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+
+
 def render_index(entries: list[tuple[str, str, str]]) -> bytes:
     """Render a simple HA-style page for incidents with details links."""
-    style = (
-        "body{margin:0;padding:16px;font-family:'Roboto',sans-serif;"
-        "background-color:#121212;color:#e0e0e0;}"
-        "\n.card{max-width:800px;margin:0 auto;background:#1e1e1e;border-radius:12px;"
-        "box-shadow:0 2px 4px rgba(0,0,0,0.6);}"
-        "\n.card h1{margin:0;padding:16px;font-size:20px;border-bottom:1px solid #333;}"
-        "\n.list{list-style:none;margin:0;padding:0;}"
-        "\n.item{display:flex;align-items:center;justify-content:space-between;"
-        "padding:12px 16px;border-bottom:1px solid #333;}"
-        "\n.item:last-child{border-bottom:none;}"
-        "\n.item a{color:#03a9f4;text-decoration:none;}"
-        "\n.name{flex:1;}"
-        "\n.timestamp{color:#bbb;font-size:0.9em;margin-right:16px;}"
-    )
-    html_parts = [
-        "<html><head><title>HA LLM Ops</title>",
-        "<link rel='preconnect' href='https://fonts.gstatic.com'>",
+    items = "\n".join(
         (
-            "<link href='https://fonts.googleapis.com/css2?family=Roboto:wght@400;"
-            "500&display=swap' rel='stylesheet'>"
-        ),
-        "<style>",
-        style,
-        "</style>",
-        "</head><body>",
-        "<div class='card'>",
-        "<h1>Incidents</h1>",
-        "<ul class='list'>",
-    ]
-    for desc, last, name in entries:
-        html_parts.append(
             f"<li class='item'><span class='name'>{html.escape(desc)}</span>"
             f"<span class='timestamp'>{html.escape(last)}</span>"
             f"<a href=\"details/{html.escape(name)}\">View</a></li>"
         )
-    html_parts.extend(["</ul></div></body></html>"])
-    return "".join(html_parts).encode("utf-8")
+        for desc, last, name in entries
+    )
+    template = (TEMPLATE_DIR / "index.html").read_text(encoding="utf-8")
+    body = Template(template).safe_substitute(items=items)
+    return body.encode("utf-8")
 
 
-def render_details(name: str, incident_path: Path, analysis: dict[str, object] | None) -> bytes:  # noqa: E501
+def render_details(
+    name: str,
+    incident_path: Path,
+    analysis: dict[str, object] | None,
+) -> bytes:
     """Render an incident details page including its analysis if available."""
     incident_lines = [
         line
@@ -123,41 +106,30 @@ def render_details(name: str, incident_path: Path, analysis: dict[str, object] |
     title = name
     if isinstance(analysis, dict):
         title = str(analysis.get("impact", name))
-    style = (
-        "body{margin:0;padding:16px;font-family:'Roboto',sans-serif;"
-        "background-color:#121212;color:#e0e0e0;}"
-        "\n.card{max-width:800px;margin:0 auto;background:#1e1e1e;border-radius:12px;"
-        "box-shadow:0 2px 4px rgba(0,0,0,0.6);padding:16px;}"
-        "\nh1{margin-top:0;font-size:20px;}"
-        "\na{color:#03a9f4;text-decoration:none;}"
-        "\npre{background:#2b2b2b;padding:8px;border-radius:8px;white-space:pre-wrap;"
-        "word-break:break-word;}"
-    )
-    parts = [
-        "<html><head><title>HA LLM Ops</title>",
-        "<link rel='preconnect' href='https://fonts.gstatic.com'>",
-        (
-            "<link href='https://fonts.googleapis.com/css2?family=Roboto:wght@400;"
-            "500&display=swap' rel='stylesheet'>"
-        ),
-        "<style>",
-        style,
-        "</style>",
-        "</head><body>",
-        "<div class='card'>",
-        f"<h1>{html.escape(title)}</h1>",
-        f"<p>Occurrences: {occurrences} {'occurrence' if occurrences == 1 else 'occurrences'}<br>"  # noqa: E501
-        f"Last occurrence: {html.escape(last_seen)}</p>",
-        "<h2>Analysis</h2>",
-    ]
+    title = html.escape(title)
+    parts = []
     if isinstance(analysis, dict):
-        parts.extend([
-            "<ul>",
-            f"<li><strong>Root Cause:</strong> {html.escape(str(analysis.get('root_cause', '')))}</li>",  # noqa: E501
-            f"<li><strong>Impact:</strong> {html.escape(str(analysis.get('impact', '')))}</li>",  # noqa: E501
-            f"<li><strong>Confidence:</strong> {html.escape(str(analysis.get('confidence', '')))}</li>",  # noqa: E501
-            f"<li><strong>Risk:</strong> {html.escape(str(analysis.get('risk', '')))}</li>",  # noqa: E501
-        ])
+        parts.extend(
+            [
+                "<ul>",
+                (
+                    "<li><strong>Root Cause:</strong> "
+                    f"{html.escape(str(analysis.get('root_cause', '')))}</li>"
+                ),
+                (
+                    "<li><strong>Impact:</strong> "
+                    f"{html.escape(str(analysis.get('impact', '')))}</li>"
+                ),
+                (
+                    "<li><strong>Confidence:</strong> "
+                    f"{html.escape(str(analysis.get('confidence', '')))}</li>"
+                ),
+                (
+                    "<li><strong>Risk:</strong> "
+                    f"{html.escape(str(analysis.get('risk', '')))}</li>"
+                ),
+            ]
+        )
         actions = analysis.get("candidate_actions")
         if isinstance(actions, list):
             parts.append("<li><strong>Candidate Actions:</strong><ul>")
@@ -175,16 +147,21 @@ def render_details(name: str, incident_path: Path, analysis: dict[str, object] |
             parts.append("</ul></li>")
         if "recurrence_pattern" in analysis:
             parts.append(
-                f"<li><strong>Recurrence Pattern:</strong> {html.escape(str(analysis['recurrence_pattern']))}</li>"  # noqa: E501
+                "<li><strong>Recurrence Pattern:</strong> "
+                f"{html.escape(str(analysis['recurrence_pattern']))}</li>"
             )
         parts.append("</ul>")
     else:
         parts.append("<p>No analysis available.</p>")
-    parts.extend([
-        '<p><a href="../">Back</a></p>',
-        "</div></body></html>",
-    ])
-    return "".join(parts).encode("utf-8")
+    analysis_html = "".join(parts)
+    template = (TEMPLATE_DIR / "details.html").read_text(encoding="utf-8")
+    body = Template(template).safe_substitute(
+        title=title,
+        occurrences=occurrences,
+        last_seen=html.escape(last_seen),
+        analysis=analysis_html,
+    )
+    return body.encode("utf-8")
 
 
 def start_http_server(
@@ -195,6 +172,7 @@ def start_http_server(
     port: int = 8000,
 ) -> ThreadingHTTPServer:
     """Start a thread-based HTTP server exposing incident and analysis bundles."""
+
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: D401 - HTTP handler
             path = unquote(self.path.rstrip("/"))
