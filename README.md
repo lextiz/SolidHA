@@ -5,6 +5,12 @@
 
 > **Goal:** A Home Assistant (HA) Supervisor add-on that continuously observes your HA system, performs LLM-driven root cause analysis (RCA) for instability, proposes safe fixes, and—optionally—executes guarded remediations after taking a backup.
 
+## Quick Installation
+
+[![Install Add-on](https://my.home-assistant.io/badges/supervisor_addon.svg)](https://my.home-assistant.io/redirect/supervisor_addon/?addon=ha_llm_ops&repository_url=https%3A%2F%2Fgithub.com%2Flextiz%2FSolidHA)
+
+The add-on uses Home Assistant's ingress feature and adds a sidebar panel for viewing collected incidents and their suggested solutions.
+
 ----------
 
 ## Motivation
