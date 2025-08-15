@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
 
-import inspect
 import websockets
 
 from .redact import load_secret_keys, redact
