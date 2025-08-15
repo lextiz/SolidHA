@@ -17,7 +17,7 @@ class OpenAI(LLM):
     """LLM adapter using OpenAI's responses endpoint."""
 
     def __init__(
-        self, model: str = "gpt-4o-mini", *, api_key: str | None = None
+        self, model: str = "gpt-5", *, api_key: str | None = None
     ) -> None:
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:

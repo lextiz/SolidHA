@@ -36,6 +36,7 @@ def test_openai_generate(monkeypatch) -> None:
     assert result == "{}"
     assert captured["timeout"] == 2.5
     assert captured["headers"]["Authorization"] == "Bearer token"
+    assert captured["json"]["model"] == "gpt-5"
     messages = captured["json"]["input"]
     assert messages[0]["content"][0]["text"] == openai._SYSTEM_PROMPT
     assert messages[1]["content"][0]["text"] == "prompt"
