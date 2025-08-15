@@ -51,7 +51,9 @@ def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
             "impact": "system broken",
             "confidence": 0.5,
             "risk": "low",
+            "recurrence_pattern": "pattern",
         },
+        "event": {"event_type": "trigger"},
     }
     (tmp_path / "analyses_1.jsonl").write_text(json.dumps(ana_record), encoding="utf-8")
     server = devux.start_http_server(
@@ -82,6 +84,7 @@ def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
             "tests": ["check"],
             "recurrence_pattern": "pattern",
         },
+        "event": {"event_type": "trigger"},
     }
     (tmp_path / "analyses_1.jsonl").write_text(json.dumps(ana_record), encoding="utf-8")
     server = devux.start_http_server(
@@ -97,6 +100,7 @@ def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
         assert "system broken" in resp.text
         assert "Occurrences: 1" in resp.text
         assert "Candidate Actions" in resp.text
+        assert "trigger" in resp.text
     finally:
         server.shutdown()
 

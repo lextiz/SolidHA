@@ -107,11 +107,16 @@ class AnalysisRunner:
         LOGGER.debug("LLM response for %s: %s", incident.path, raw)
         result = parse_result(raw)
         LOGGER.debug("parsed LLM result for %s: %s", incident.path, result)
-        record = {"incident": str(incident.path), "result": result.model_dump()}
+        trigger = bundle.events[-1] if bundle.events else None
+        record = {
+            "incident": str(incident.path),
+            "result": result.model_dump(),
+            "event": trigger,
+        }
         self.logger.write(record)
         LOGGER.info("analysis recorded for %s", incident.path)
-        pattern = getattr(result, "recurrence_pattern", None)
-        if pattern and validate_pattern(pattern):
+        pattern = result.recurrence_pattern
+        if validate_pattern(pattern):
             LOGGER.debug("adding recurrence pattern for %s: %s", incident.path, pattern)
             self.patterns.add(pattern, incident.end)
 

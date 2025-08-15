@@ -67,8 +67,12 @@ def _load_analyses(directory: Path) -> dict[str, dict[str, object]]:
                 continue
             inc = record.get("incident")
             result = record.get("result")
+            event = record.get("event")
             if isinstance(inc, str) and isinstance(result, dict):
-                mapping[Path(inc).name] = result
+                combined = dict(result)
+                if event is not None:
+                    combined["trigger_event"] = event
+                mapping[Path(inc).name] = combined
     return mapping
 
 
@@ -109,9 +113,15 @@ def render_details(
     title = html.escape(title)
     parts = []
     if isinstance(analysis, dict):
+        parts.append("<ul>")
+        trigger = analysis.get("trigger_event")
+        if trigger is not None:
+            event_json = html.escape(json.dumps(trigger, indent=2, sort_keys=True))
+            parts.append(
+                "<li><strong>Trigger Event:</strong><pre>" f"{event_json}" "</pre></li>"
+            )
         parts.extend(
             [
-                "<ul>",
                 (
                     "<li><strong>Root Cause:</strong> "
                     f"{html.escape(str(analysis.get('root_cause', '')))}</li>"
