@@ -10,8 +10,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
 
-import websockets
-from websockets.exceptions import ConnectionClosed, InvalidHandshake
+import websockets  # type: ignore[import-not-found]
+from websockets.exceptions import (  # type: ignore[import-not-found]
+    ConnectionClosed,
+    InvalidHandshake,
+)
 
 
 class AuthenticationError(RuntimeError):

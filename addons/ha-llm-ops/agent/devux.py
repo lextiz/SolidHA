@@ -104,14 +104,20 @@ def render_details(
     occurrences = len(incident_lines)
     last_seen = _last_occurrence(incident_path)
     title = name
+    summary = ""
     if isinstance(analysis, dict):
-        title = str(analysis.get("impact", name))
+        summary = str(analysis.get("summary", ""))
+        title = summary or str(analysis.get("impact", name))
     title = html.escape(title)
     parts = []
     if isinstance(analysis, dict):
         parts.extend(
             [
                 "<ul>",
+                (
+                    "<li><strong>Summary:</strong> "
+                    f"{html.escape(str(analysis.get('summary', '')))}</li>"
+                ),
                 (
                     "<li><strong>Root Cause:</strong> "
                     f"{html.escape(str(analysis.get('root_cause', '')))}</li>"
@@ -154,11 +160,15 @@ def render_details(
     else:
         parts.append("<p>No analysis available.</p>")
     analysis_html = "".join(parts)
+    incident_html = "<pre>" + "\n".join(
+        html.escape(line) for line in incident_lines
+    ) + "</pre>"
     template = (TEMPLATE_DIR / "details.html").read_text(encoding="utf-8")
     body = Template(template).safe_substitute(
         title=title,
         occurrences=occurrences,
         last_seen=html.escape(last_seen),
+        incident=incident_html,
         analysis=analysis_html,
     )
     return body.encode("utf-8")
@@ -183,7 +193,8 @@ def start_http_server(
                 )
                 for name in list_incidents(incident_dir):
                     inc_path = incident_dir / name
-                    desc = str(analyses.get(name, {}).get("impact") or name)
+                    ana = analyses.get(name, {})
+                    desc = str(ana.get("summary") or ana.get("impact") or name)
                     incidents.append((desc, _last_occurrence(inc_path), name))
                 body = render_index(incidents)
                 self.send_response(200)
