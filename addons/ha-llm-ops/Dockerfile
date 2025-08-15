@@ -1,10 +1,11 @@
 FROM alpine:3.19.1
 
-RUN apk add --no-cache python3 py3-pip jq \
-    && pip install --no-cache-dir --break-system-packages pydantic PyYAML websockets
+RUN apk add --no-cache python3 py3-pip jq
 
 WORKDIR /app
-COPY agent /app/agent
+COPY pyproject.toml README.md .
+COPY agent ./agent
+RUN pip install --no-cache-dir --break-system-packages .
 ENV PYTHONPATH=/app
 
 COPY run.sh /run.sh
