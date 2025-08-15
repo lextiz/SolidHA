@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
 
+import inspect
 import websockets
 
 from .redact import load_secret_keys, redact
@@ -80,10 +81,15 @@ async def observe(
     logger = IncidentLogger(incident_dir, max_bytes=max_bytes)
     backoff = 1
     processed = 0
+    header_arg = (
+        "extra_headers"
+        if "extra_headers" in inspect.signature(websockets.connect).parameters
+        else "additional_headers"
+    )
     while True:
         try:
             async with websockets.connect(
-                url, extra_headers={"Authorization": f"Bearer {token}"}
+                url, **{header_arg: {"Authorization": f"Bearer {token}"}}
             ) as ws:
                 await _authenticate(ws, token)
                 await ws.send(json.dumps({"id": 1, "type": "subscribe_events"}))

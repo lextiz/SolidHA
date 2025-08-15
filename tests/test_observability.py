@@ -31,7 +31,10 @@ async def _serve_header_auth() -> str:
 
     async def handler(ws):
         # Ensure we received the Authorization header
-        assert ws.request_headers["Authorization"] == "Bearer t"
+        headers = getattr(ws, "request_headers", None)
+        if headers is None:  # websockets >=15
+            headers = ws.request.headers
+        assert headers["Authorization"] == "Bearer t"
         await ws.send(json.dumps({"type": "auth_required"}))
 
         # First auth attempt with token should fail
@@ -99,13 +102,16 @@ def test_observe_writes_redacted_events(tmp_path: Path) -> None:
     async def run_test() -> None:
         server, url = await _serve(events)
         try:
-            await observe(
-                url,
-                token="t",
-                incident_dir=tmp_path,
-                max_bytes=120,
-                limit=3,
-                secrets_path=secrets,
+            await asyncio.wait_for(
+                observe(
+                    url,
+                    token="t",
+                    incident_dir=tmp_path,
+                    max_bytes=120,
+                    limit=3,
+                    secrets_path=secrets,
+                ),
+                timeout=3,
             )
         finally:
             server.close()
