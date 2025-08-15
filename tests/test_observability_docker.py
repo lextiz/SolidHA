@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from agent.analysis.llm.mock import MockLLM
+from agent.analysis.runner import AnalysisRunner
 from agent.observability import observe
 
 
@@ -141,5 +143,17 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
             )
             for line in lines
         ), lines
+
+        analysis_dir = tmp_path / "analyses"
+        runner = AnalysisRunner(
+            incident_dir,
+            analysis_dir,
+            MockLLM(),
+            rate_seconds=0,
+            max_lines=5,
+            max_bytes=1000,
+        )
+        runner.run_once()
+        assert list(analysis_dir.glob("analyses_*.jsonl")), "No analysis files created"
     finally:
         subprocess.run(["docker", "stop", container_name], check=False)
