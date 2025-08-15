@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from importlib import metadata
+from pathlib import Path
 from typing import Any
 
 from .types import ContextBundle, Prompt, RcaOutput
@@ -21,7 +23,12 @@ def _package_version() -> str:
     try:
         return metadata.version("solidha-agent")
     except metadata.PackageNotFoundError:  # pragma: no cover - fallback for tests
-        return "0.0.0"
+        try:
+            pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+            data = tomllib.loads(pyproject.read_text())
+            return data["project"]["version"]
+        except Exception:  # pragma: no cover - final fallback
+            return "0.0.0"
 
 
 def build_prompt(bundle: ContextBundle) -> Prompt:
