@@ -20,7 +20,10 @@ class RcaResult(BaseModel):
     """LLM-provided root cause analysis result."""
 
     summary: str = Field(..., description="Short summary of the incident")
-    root_cause: str = Field(..., description="Primary reason for the incident")
+    root_cause: str = Field(
+        ...,
+        description="Detailed explanation of the primary reason for the incident",
+    )
     impact: str = Field(..., description="Observed impact on the system")
     confidence: Annotated[
         float, Field(ge=0.0, le=1.0, description="Confidence score between 0 and 1")
@@ -34,9 +37,12 @@ class RcaResult(BaseModel):
         description="Checks to verify the issue is resolved",
     )
 
-    recurrence_pattern: str | None = Field(
-        default=None,
-        description="Regular expression detecting recurring incidents",
+    recurrence_pattern: str = Field(
+        ...,  # pattern is required
+        description=(
+            "Regular expression to find occurrences of the same kind of problem "
+            "in the future"
+        ),
     )
 
 

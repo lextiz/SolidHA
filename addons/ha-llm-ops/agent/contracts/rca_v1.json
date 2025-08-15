@@ -30,7 +30,7 @@
       "type": "string"
     },
     "root_cause": {
-      "description": "Primary reason for the incident",
+      "description": "Detailed explanation of the primary reason for the incident",
       "title": "Root Cause",
       "type": "string"
     },
@@ -68,17 +68,9 @@
       "type": "array"
     },
     "recurrence_pattern": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Regular expression detecting recurring incidents",
-      "title": "Recurrence Pattern"
+      "description": "Regular expression to find occurrences of the same kind of problem in the future",
+      "title": "Recurrence Pattern",
+      "type": "string"
     }
   },
   "required": [
@@ -86,7 +78,8 @@
     "root_cause",
     "impact",
     "confidence",
-    "risk"
+    "risk",
+    "recurrence_pattern"
   ],
   "title": "RcaResult",
   "type": "object"
