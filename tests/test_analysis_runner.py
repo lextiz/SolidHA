@@ -17,7 +17,14 @@ def test_runner_processes_new_incidents(tmp_path: Path) -> None:
 
     _incident(inc_dir / "incidents_1.jsonl", "2024-01-01T00:00:00+00:00")
 
-    runner = AnalysisRunner(inc_dir, out_dir, MockLLM(), rate_seconds=0, max_lines=5, max_bytes=1000)
+    runner = AnalysisRunner(
+        inc_dir,
+        out_dir,
+        MockLLM(),
+        rate_seconds=0,
+        max_lines=5,
+        max_bytes=1000,
+    )
     runner.run_once()
 
     files = sorted(out_dir.glob("analyses_*.jsonl"))
@@ -30,7 +37,10 @@ def test_runner_processes_new_incidents(tmp_path: Path) -> None:
     lines = files[0].read_text().splitlines()
     assert len(lines) == 2
     data = [json.loads(line)["incident"] for line in lines]
-    assert data == [str(inc_dir / "incidents_1.jsonl"), str(inc_dir / "incidents_2.jsonl")]
+    assert data == [
+        str(inc_dir / "incidents_1.jsonl"),
+        str(inc_dir / "incidents_2.jsonl"),
+    ]
 
 
 def test_runner_rate_limit(tmp_path: Path) -> None:
@@ -84,7 +94,14 @@ def test_runner_rotation(tmp_path: Path) -> None:
     inc_dir.mkdir()
     out_dir.mkdir()
 
-    runner = AnalysisRunner(inc_dir, out_dir, MockLLM(), rate_seconds=0, max_lines=5, max_bytes=80)
+    runner = AnalysisRunner(
+        inc_dir,
+        out_dir,
+        MockLLM(),
+        rate_seconds=0,
+        max_lines=5,
+        max_bytes=80,
+    )
 
     for i in range(5):
         _incident(inc_dir / f"incidents_{i}.jsonl", f"2024-01-01T00:00:0{i}+00:00")

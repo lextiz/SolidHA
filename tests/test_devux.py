@@ -1,5 +1,6 @@
 import time
 from pathlib import Path
+
 import requests
 
 from agent.devux import start_http_server
@@ -22,7 +23,12 @@ def test_http_lists_incident_files(tmp_path: Path) -> None:
 
 def test_http_lists_analysis_files(tmp_path: Path) -> None:
     (tmp_path / "analyses_1.jsonl").write_text("{}\n", encoding="utf-8")
-    server = start_http_server(tmp_path, analysis_dir=tmp_path, host="127.0.0.1", port=0)
+    server = start_http_server(
+        tmp_path,
+        analysis_dir=tmp_path,
+        host="127.0.0.1",
+        port=0,
+    )
     try:
         time.sleep(0.1)
         port = server.server_address[1]
@@ -34,7 +40,12 @@ def test_http_lists_analysis_files(tmp_path: Path) -> None:
 
 
 def test_http_analyses_empty(tmp_path: Path) -> None:
-    server = start_http_server(tmp_path, analysis_dir=tmp_path, host="127.0.0.1", port=0)
+    server = start_http_server(
+        tmp_path,
+        analysis_dir=tmp_path,
+        host="127.0.0.1",
+        port=0,
+    )
     try:
         time.sleep(0.1)
         port = server.server_address[1]

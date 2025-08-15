@@ -5,9 +5,9 @@ import json
 import logging
 import os
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
 
 from .context import build_context
 from .llm.base import LLM
