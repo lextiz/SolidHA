@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import time
 from pathlib import Path
 from types import ModuleType
@@ -41,8 +42,18 @@ def test_http_lists_incident_files(devux: ModuleType, tmp_path: Path) -> None:
 
 
 def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
-    (tmp_path / "incidents_1.jsonl").write_text("{}\n", encoding="utf-8")
-    (tmp_path / "analyses_1.jsonl").write_text("{}\n", encoding="utf-8")
+    inc = tmp_path / "incidents_1.jsonl"
+    inc.write_text("{\"time_fired\":\"2024-01-01T00:00:00+00:00\"}\n", encoding="utf-8")
+    ana_record = {
+        "incident": str(inc),
+        "result": {
+            "root_cause": "rc",
+            "impact": "system broken",
+            "confidence": 0.5,
+            "risk": "low",
+        },
+    }
+    (tmp_path / "analyses_1.jsonl").write_text(json.dumps(ana_record), encoding="utf-8")
     server = devux.start_http_server(
         tmp_path, analysis_dir=tmp_path, host="127.0.0.1", port=0
     )
@@ -51,17 +62,28 @@ def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
         port = server.server_address[1]
         resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
         assert resp.status_code == 200
-        assert "incidents_1.jsonl" in resp.text
+        assert "system broken" in resp.text
         assert 'href="details/incidents_1.jsonl"' in resp.text
     finally:
         server.shutdown()
 
 
 def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
-    inc_data = "{\"time_fired\":\"2024-01-01T00:00:00+00:00\"}"
-    ana_data = "{\"result\":\"ok\"}"
-    (tmp_path / "incidents_1.jsonl").write_text(inc_data, encoding="utf-8")
-    (tmp_path / "analyses_1.jsonl").write_text(ana_data, encoding="utf-8")
+    inc = tmp_path / "incidents_1.jsonl"
+    inc.write_text("{\"time_fired\":\"2024-01-01T00:00:00+00:00\"}\n", encoding="utf-8")
+    ana_record = {
+        "incident": str(inc),
+        "result": {
+            "root_cause": "rc",
+            "impact": "system broken",
+            "confidence": 0.5,
+            "risk": "low",
+            "candidate_actions": [{"action": "act", "rationale": "why"}],
+            "tests": ["check"],
+            "recurrence_pattern": "pattern",
+        },
+    }
+    (tmp_path / "analyses_1.jsonl").write_text(json.dumps(ana_record), encoding="utf-8")
     server = devux.start_http_server(
         tmp_path, analysis_dir=tmp_path, host="127.0.0.1", port=0
     )
@@ -72,10 +94,9 @@ def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
             f"http://127.0.0.1:{port}/details/incidents_1.jsonl", timeout=5
         )
         assert resp.status_code == 200
-        from html import escape as _escape
-
-        assert _escape(inc_data) in resp.text
-        assert _escape(ana_data) in resp.text
+        assert "system broken" in resp.text
+        assert "1 occurrence" in resp.text
+        assert "Candidate Actions" in resp.text
     finally:
         server.shutdown()
 
