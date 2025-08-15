@@ -103,7 +103,7 @@ class AnalysisRunner:
             return
         prompt = build_prompt(bundle)
         LOGGER.debug("sending prompt to LLM for %s", incident.path)
-        raw = self.llm.generate(prompt.text, timeout=30)
+        raw = self.llm.generate(prompt.text, timeout=180)
         LOGGER.debug("LLM response for %s: %s", incident.path, raw)
         result = parse_result(raw)
         LOGGER.debug("parsed LLM result for %s: %s", incident.path, result)
