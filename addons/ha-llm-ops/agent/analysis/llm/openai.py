@@ -49,7 +49,6 @@ class OpenAI(LLM):
                     "content": [{"type": "input_text", "text": prompt}],
                 },
             ],
-            "temperature": 0,
         }
         resp = requests.post(_API_URL, headers=headers, json=payload, timeout=timeout)
         resp.raise_for_status()
