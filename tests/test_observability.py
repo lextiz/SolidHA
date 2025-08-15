@@ -37,14 +37,14 @@ async def _serve_header_auth() -> str:
         assert headers["Authorization"] == "Bearer t"
         await ws.send(json.dumps({"type": "auth_required"}))
 
-        # First auth attempt with token should fail
-        msg = json.loads(await ws.recv())
-        assert msg == {"type": "auth", "access_token": "t"}
-        await ws.send(json.dumps({"type": "auth_invalid"}))
-
-        # Fallback auth without token succeeds
+        # First auth attempt without token should fail
         msg = json.loads(await ws.recv())
         assert msg == {"type": "auth"}
+        await ws.send(json.dumps({"type": "auth_invalid"}))
+
+        # Fallback auth with token succeeds
+        msg = json.loads(await ws.recv())
+        assert msg == {"type": "auth", "access_token": "t"}
         await ws.send(json.dumps({"type": "auth_ok"}))
 
         await ws.recv()  # subscribe

@@ -54,13 +54,16 @@ async def _authenticate(ws: Any, token: str) -> None:
     if msg.get("type") != "auth_required":  # pragma: no cover - defensive
         raise RuntimeError("unexpected auth sequence")
 
-    await ws.send(json.dumps({"type": "auth", "access_token": token}))
+    # First attempt header-based authentication.  Some environments (e.g. the
+    # Home Assistant Supervisor proxy) authenticate via the ``Authorization``
+    # header and expect an empty auth message on the WebSocket connection.  If
+    # that fails, retry with the access token which is required when connecting
+    # directly to Home Assistant.
+    await ws.send(json.dumps({"type": "auth"}))
     msg = json.loads(await ws.recv())
 
     if msg.get("type") == "auth_invalid":
-        # Some environments (e.g. HA Supervisor proxy) authenticate via the
-        # Authorization header and expect an empty auth message.
-        await ws.send(json.dumps({"type": "auth"}))
+        await ws.send(json.dumps({"type": "auth", "access_token": token}))
         msg = json.loads(await ws.recv())
 
     if msg.get("type") != "auth_ok":  # pragma: no cover - defensive
