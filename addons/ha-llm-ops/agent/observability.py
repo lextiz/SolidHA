@@ -48,12 +48,12 @@ class IncidentLogger:
 async def _authenticate(ws: Any, token: str) -> None:
     """Perform Home Assistant WebSocket authentication.
 
-    The function first attempts header-based authentication by sending an empty
-    auth message.  If the server responds with ``auth_invalid`` it falls back to
-    token-based authentication using the provided ``token``.
+    Always send the access token in the auth message. Some Home Assistant
+    versions also accept the token via the ``Authorization`` header, but
+    providing it in the message ensures compatibility across versions.
     """
 
-    messages = []
+    messages: list[dict[str, Any]] = []
 
     msg = json.loads(await ws.recv())
     messages.append(msg)
@@ -61,14 +61,9 @@ async def _authenticate(ws: Any, token: str) -> None:
         pretty = json.dumps(messages, indent=2)
         raise AuthenticationError(f"unexpected auth sequence: {pretty}")
 
-    await ws.send(json.dumps({"type": "auth"}))
+    await ws.send(json.dumps({"type": "auth", "access_token": token}))
     msg = json.loads(await ws.recv())
     messages.append(msg)
-
-    if msg.get("type") == "auth_invalid":
-        await ws.send(json.dumps({"type": "auth", "access_token": token}))
-        msg = json.loads(await ws.recv())
-        messages.append(msg)
 
     if msg.get("type") != "auth_ok":  # pragma: no cover - defensive
         pretty = json.dumps(messages, indent=2)

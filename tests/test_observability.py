@@ -27,72 +27,14 @@ async def _serve(events: list[dict]) -> str:
     return server, f"ws://localhost:{port}"
 
 
-async def _serve_header_auth() -> str:
-    """Server that requires token after header auth."""
-
-    async def handler(ws):
-        # Ensure we received the Authorization header
-        headers = getattr(ws, "request_headers", None)
-        if headers is None:  # websockets >=15
-            headers = ws.request.headers
-        assert headers["Authorization"] == "Bearer t"
-        await ws.send(json.dumps({"type": "auth_required"}))
-
-        msg = json.loads(await ws.recv())
-        assert msg == {"type": "auth"}
-        await ws.send(json.dumps({"type": "auth_invalid"}))
-        msg = json.loads(await ws.recv())
-        assert msg == {"type": "auth", "access_token": "t"}
-        await ws.send(json.dumps({"type": "auth_ok"}))
-        await ws.recv()  # subscribe
-        await ws.close()
-
-    server = await websockets.serve(handler, "localhost", 0)
-    port = server.sockets[0].getsockname()[1]
-    return server, f"ws://localhost:{port}"
-
-
 async def _serve_auth_failure() -> str:
     """Server that always fails token authentication."""
 
     async def handler(ws):
         await ws.send(json.dumps({"type": "auth_required"}))
         msg = json.loads(await ws.recv())
-        assert msg == {"type": "auth"}
-        await ws.send(json.dumps({"type": "auth_invalid"}))
-        msg = json.loads(await ws.recv())
         assert msg == {"type": "auth", "access_token": "t"}
         await ws.send(json.dumps({"type": "auth_invalid"}))
-
-    server = await websockets.serve(handler, "localhost", 0)
-    port = server.sockets[0].getsockname()[1]
-    return server, f"ws://localhost:{port}"
-
-
-async def _serve_header_auth_invalid() -> str:
-    """Server that closes after auth_invalid on first attempt."""
-
-    call_count = 0
-
-    async def handler(ws):
-        nonlocal call_count
-        call_count += 1
-        headers = getattr(ws, "request_headers", None)
-        if headers is None:  # websockets >=15
-            headers = ws.request.headers
-        assert headers["Authorization"] == "Bearer t"
-        await ws.send(json.dumps({"type": "auth_required"}))
-        msg = json.loads(await ws.recv())
-        assert msg == {"type": "auth"}
-        await ws.send(json.dumps({"type": "auth_invalid"}))
-        if call_count == 1:
-            await ws.close()
-            return
-        msg = json.loads(await ws.recv())
-        assert msg == {"type": "auth", "access_token": "t"}
-        await ws.send(json.dumps({"type": "auth_ok"}))
-        await ws.recv()  # subscribe
-        await ws.close()
 
     server = await websockets.serve(handler, "localhost", 0)
     port = server.sockets[0].getsockname()[1]
@@ -183,52 +125,6 @@ def test_observe_writes_redacted_events(tmp_path: Path) -> None:
         assert "hidden" not in dumped
         assert "ZZZZYYYY" not in dumped
         assert "[redacted]" in dumped
-
-
-def test_observe_falls_back_to_token_auth(tmp_path: Path) -> None:
-    """Ensure observer falls back to token auth when header auth fails."""
-
-    async def run_test() -> None:
-        server, url = await _serve_header_auth()
-        try:
-            await asyncio.wait_for(
-                observe(
-                    url,
-                    token="t",
-                    incident_dir=tmp_path,
-                    limit=0,
-                    secrets_path=tmp_path / "secrets.yaml",
-                ),
-                timeout=2,
-            )
-        finally:
-            server.close()
-            await server.wait_closed()
-
-    asyncio.run(run_test())
-
-
-def test_observe_recovers_from_auth_invalid(tmp_path: Path) -> None:
-    """Ensure observer reconnects after server closes on auth_invalid."""
-
-    async def run_test() -> None:
-        server, url = await _serve_header_auth_invalid()
-        try:
-            await asyncio.wait_for(
-                observe(
-                    url,
-                    token="t",
-                    incident_dir=tmp_path,
-                    limit=0,
-                    secrets_path=tmp_path / "secrets.yaml",
-                ),
-                timeout=2,
-            )
-        finally:
-            server.close()
-            await server.wait_closed()
-
-    asyncio.run(run_test())
 
 
 def test_auth_failure_includes_details(tmp_path: Path) -> None:
