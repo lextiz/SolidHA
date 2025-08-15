@@ -13,11 +13,11 @@ from typing import Any, TextIO
 import websockets
 from websockets.exceptions import ConnectionClosed
 
+from .redact import load_secret_keys, redact
+
 
 class AuthenticationError(RuntimeError):
     """Raised when Home Assistant authentication fails."""
-
-from .redact import load_secret_keys, redact
 
 
 class IncidentLogger:
