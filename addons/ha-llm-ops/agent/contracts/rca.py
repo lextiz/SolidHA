@@ -33,6 +33,11 @@ class RcaResult(BaseModel):
         description="Checks to verify the issue is resolved",
     )
 
+    recurrence_pattern: str | None = Field(
+        default=None,
+        description="Regular expression detecting recurring incidents",
+    )
+
 
 def export_schema(path: Path | None = None) -> Path:
     """Export the JSON schema to ``rca_v1.json`` and return its path."""

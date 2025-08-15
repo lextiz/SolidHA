@@ -15,6 +15,7 @@ _RESPONSE = {
     ],
     "risk": "low",
     "tests": ["test check"],
+    "recurrence_pattern": "mock error",
 }
 
 

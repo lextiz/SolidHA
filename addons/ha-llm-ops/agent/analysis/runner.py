@@ -15,6 +15,7 @@ from .llm.base import LLM
 from .llm.mock import MockLLM
 from .llm.openai import OpenAI
 from .parse import parse_result
+from .patterns import PatternStore, validate_pattern
 from .prompt_builder import build_prompt
 from .storage import list_incidents
 from .types import IncidentRef
@@ -69,6 +70,7 @@ class AnalysisRunner:
         max_lines: int = 50,
         max_bytes: int = 1_000_000,
         now_fn: Callable[[], float] = time.monotonic,
+        patterns_path: Path | None = None,
     ) -> None:
         self.incident_dir = incident_dir
         self.llm = llm
@@ -79,14 +81,25 @@ class AnalysisRunner:
         self._backoff = 1.0
         self._processed: set[Path] = set()
         self.logger = AnalysisLogger(analysis_dir, max_bytes=max_bytes)
+        if patterns_path is None:
+            patterns_path = analysis_dir / "recurring.json"
+        self.patterns = PatternStore(patterns_path)
 
     def _analyze(self, incident: IncidentRef) -> None:
         bundle = build_context(incident, max_lines=self.max_lines)
+        context_text = json.dumps(bundle.events, sort_keys=True)
+        matched = self.patterns.match(context_text)
+        if matched:
+            self.patterns.update(matched, incident.end)
+            return
         prompt = build_prompt(bundle)
         raw = self.llm.generate(prompt.text, timeout=30)
         result = parse_result(raw)
         record = {"incident": str(incident.path), "result": result.model_dump()}
         self.logger.write(record)
+        pattern = getattr(result, "recurrence_pattern", None)
+        if pattern and validate_pattern(pattern):
+            self.patterns.add(pattern, incident.end)
 
     def run_once(self) -> None:
         now = self._now()
