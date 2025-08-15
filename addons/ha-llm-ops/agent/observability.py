@@ -83,7 +83,7 @@ async def observe(
     processed = 0
 
     headers = {"Authorization": f"Bearer {token}"}
-    kwargs: dict[str, Any] = {}
+    kwargs: dict[str, Any] = {"subprotocols": ["homeassistant"]}
     if "extra_headers" in inspect.signature(websockets.connect).parameters:
         kwargs["extra_headers"] = headers
     else:
