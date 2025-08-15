@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 import websockets
-from websockets.exceptions import ConnectionClosed
+from websockets.exceptions import ConnectionClosed, InvalidHandshake
 
 from .redact import load_secret_keys, redact
 
@@ -45,15 +45,12 @@ class IncidentLogger:
         self._file.flush()
 
 
-async def _authenticate(ws: Any, token: str, *, prefer_header: bool = False) -> None:
+async def _authenticate(ws: Any, token: str) -> None:
     """Perform Home Assistant WebSocket authentication.
 
-    If ``prefer_header`` is ``False`` the function sends the access token first.
-    Some environments that proxy the WebSocket API (e.g. the HA Supervisor)
-    authenticate via the ``Authorization`` header instead and close the
-    connection when a token is sent.  In that case the caller should retry the
-    connection with ``prefer_header=True`` which sends an empty auth message
-    before falling back to token-based authentication.
+    The function first attempts header-based authentication by sending an empty
+    auth message.  If the server responds with ``auth_invalid`` it falls back to
+    token-based authentication using the provided ``token``.
     """
 
     messages = []
@@ -64,15 +61,11 @@ async def _authenticate(ws: Any, token: str, *, prefer_header: bool = False) -> 
         pretty = json.dumps(messages, indent=2)
         raise AuthenticationError(f"unexpected auth sequence: {pretty}")
 
-    if prefer_header:
-        await ws.send(json.dumps({"type": "auth"}))
-        msg = json.loads(await ws.recv())
-        messages.append(msg)
-        if msg.get("type") == "auth_invalid":
-            await ws.send(json.dumps({"type": "auth", "access_token": token}))
-            msg = json.loads(await ws.recv())
-            messages.append(msg)
-    else:
+    await ws.send(json.dumps({"type": "auth"}))
+    msg = json.loads(await ws.recv())
+    messages.append(msg)
+
+    if msg.get("type") == "auth_invalid":
         await ws.send(json.dumps({"type": "auth", "access_token": token}))
         msg = json.loads(await ws.recv())
         messages.append(msg)
@@ -104,11 +97,10 @@ async def observe(
     else:
         kwargs["additional_headers"] = headers
 
-    prefer_header = False
     while True:
         try:
             async with websockets.connect(url, **kwargs) as ws:
-                await _authenticate(ws, token, prefer_header=prefer_header)
+                await _authenticate(ws, token)
                 await ws.send(json.dumps({"id": 1, "type": "subscribe_events"}))
                 async for message in ws:
                     data = json.loads(message)
@@ -149,18 +141,15 @@ async def observe(
                     processed += 1
                     if limit is not None and processed >= limit:
                         return
+        except InvalidHandshake:  # pragma: no cover - handshake retry path
+            kwargs.pop("subprotocols", None)
+            continue
         except ConnectionClosed as err:  # pragma: no cover - network error path
             logging.exception("WebSocket error: %s", err)
-            if not prefer_header:
-                prefer_header = True
-                continue
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30)
         except AuthenticationError as err:  # pragma: no cover - auth error path
             logging.exception("WebSocket error: %s", err)
-            if not prefer_header:
-                prefer_header = True
-                continue
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30)
         except Exception as err:  # pragma: no cover - network error path
