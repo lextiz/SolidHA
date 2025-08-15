@@ -24,7 +24,15 @@ def test_openai_generate(monkeypatch) -> None:
                 pass
 
             def json(self) -> dict:
-                return {"output": [{"content": [{"text": "{}"}]}]}
+                return {
+                    "output": [
+                        {"type": "reasoning"},
+                        {
+                            "type": "message",
+                            "content": [{"type": "output_text", "text": "{}"}],
+                        },
+                    ]
+                }
 
         return Resp()
 
@@ -40,7 +48,10 @@ def test_openai_generate(monkeypatch) -> None:
     assert captured["json"]["model"] == "gpt-5"
     messages = captured["json"]["input"]
     assert messages[0]["content"][0]["text"] == openai._SYSTEM_PROMPT
+    assert messages[0]["content"][0]["type"] == "input_text"
     assert messages[1]["content"][0]["text"] == "prompt"
+    assert messages[1]["content"][0]["type"] == "input_text"
+    assert captured["headers"]["OpenAI-Beta"] == "responses-v1"
 
 
 def test_openai_generate_with_project(monkeypatch) -> None:
@@ -59,7 +70,14 @@ def test_openai_generate_with_project(monkeypatch) -> None:
                 pass
 
             def json(self) -> dict:
-                return {"output": [{"content": [{"text": "{}"}]}]}
+                return {
+                    "output": [
+                        {
+                            "type": "message",
+                            "content": [{"type": "output_text", "text": "{}"}],
+                        }
+                    ]
+                }
 
         return Resp()
 
