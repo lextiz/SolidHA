@@ -40,25 +40,44 @@ def _last_occurrence(path: Path) -> str:
 
 
 def render_index(entries: list[tuple[str, str]]) -> bytes:
-    """Render a minimal HTML page for incidents with details links."""
+    """Render a simple HA-style page for incidents with details links."""
+    style = (
+        "body{margin:0;padding:16px;font-family:'Roboto',sans-serif;"
+        "background-color:#f5f5f5;}"
+        "\n.card{max-width:800px;margin:0 auto;background:#fff;border-radius:12px;"
+        "box-shadow:0 2px 4px rgba(0,0,0,0.2);}" 
+        "\n.card h1{margin:0;padding:16px;font-size:20px;border-bottom:1px solid "
+        "#e0e0e0;}"
+        "\n.list{list-style:none;margin:0;padding:0;}"
+        "\n.item{display:flex;align-items:center;justify-content:space-between;"
+        "padding:12px 16px;border-bottom:1px solid #e0e0e0;}"
+        "\n.item:last-child{border-bottom:none;}"
+        "\n.item a{color:#03a9f4;text-decoration:none;}"
+        "\n.name{flex:1;}"
+        "\n.timestamp{color:#666;font-size:0.9em;margin-right:16px;}"
+    )
     html_parts = [
         "<html><head><title>HA LLM Ops</title>",
+        "<link rel='preconnect' href='https://fonts.gstatic.com'>",
+        (
+            "<link href='https://fonts.googleapis.com/css2?family=Roboto:wght@400;"
+            "500&display=swap' rel='stylesheet'>"
+        ),
         "<style>",
-        "table{border-collapse:collapse;}",
-        "th,td{padding:4px;border:1px solid #ccc;}",
-        "body{font-family:sans-serif;}",
+        style,
         "</style>",
         "</head><body>",
+        "<div class='card'>",
         "<h1>Incidents</h1>",
-        "<table>",
-        "<tr><th>Incident</th><th>Last Occurrence</th><th>Details</th></tr>",
+        "<ul class='list'>",
     ]
     for name, last in entries:
         html_parts.append(
-            f"<tr><td>{html.escape(name)}</td><td>{html.escape(last)}</td>"
-            f'<td><a href="details/{html.escape(name)}">View</a></td></tr>'
+            f"<li class='item'><span class='name'>{html.escape(name)}</span>"
+            f"<span class='timestamp'>{html.escape(last)}</span>"
+            f"<a href=\"details/{html.escape(name)}\">View</a></li>"
         )
-    html_parts.append("</table></body></html>")
+    html_parts.extend(["</ul></div></body></html>"])
     return "".join(html_parts).encode("utf-8")
 
 
@@ -72,15 +91,35 @@ def render_details(
         analysis_path = analysis_dir / name.replace("incidents_", "analyses_")
         if analysis_path.exists():
             analysis_text = analysis_path.read_text(encoding="utf-8")
+    style = (
+        "body{margin:0;padding:16px;font-family:'Roboto',sans-serif;"
+        "background-color:#f5f5f5;}"
+        "\n.card{max-width:800px;margin:0 auto;background:#fff;border-radius:12px;"
+        "box-shadow:0 2px 4px rgba(0,0,0,0.2);padding:16px;}"
+        "\nh1{margin-top:0;font-size:20px;}"
+        "\npre{background:#f0f0f0;padding:8px;border-radius:8px;white-space:pre-wrap;"
+        "word-break:break-word;}"
+        "\na{color:#03a9f4;text-decoration:none;}"
+    )
     parts = [
-        "<html><head><title>HA LLM Ops</title></head><body>",
+        "<html><head><title>HA LLM Ops</title>",
+        "<link rel='preconnect' href='https://fonts.gstatic.com'>",
+        (
+            "<link href='https://fonts.googleapis.com/css2?family=Roboto:wght@400;"
+            "500&display=swap' rel='stylesheet'>"
+        ),
+        "<style>",
+        style,
+        "</style>",
+        "</head><body>",
+        "<div class='card'>",
         f"<h1>{html.escape(name)}</h1>",
         "<h2>Incident</h2>",
         f"<pre>{html.escape(incident_data)}</pre>",
         "<h2>Analysis</h2>",
         f"<pre>{html.escape(analysis_text)}</pre>",
         '<p><a href="../">Back</a></p>',
-        "</body></html>",
+        "</div></body></html>",
     ]
     return "".join(parts).encode("utf-8")
 
