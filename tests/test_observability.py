@@ -26,6 +26,31 @@ async def _serve(events: list[dict]) -> str:
     return server, f"ws://localhost:{port}"
 
 
+async def _serve_header_auth() -> str:
+    """Server that requires header-based authentication."""
+
+    async def handler(ws):
+        # Ensure we received the Authorization header
+        assert ws.request_headers["Authorization"] == "Bearer t"
+        await ws.send(json.dumps({"type": "auth_required"}))
+
+        # First auth attempt with token should fail
+        msg = json.loads(await ws.recv())
+        assert msg == {"type": "auth", "access_token": "t"}
+        await ws.send(json.dumps({"type": "auth_invalid"}))
+
+        # Fallback auth without token succeeds
+        msg = json.loads(await ws.recv())
+        assert msg == {"type": "auth"}
+        await ws.send(json.dumps({"type": "auth_ok"}))
+
+        await ws.recv()  # subscribe
+
+    server = await websockets.serve(handler, "localhost", 0)
+    port = server.sockets[0].getsockname()[1]
+    return server, f"ws://localhost:{port}"
+
+
 def test_observe_writes_redacted_events(tmp_path: Path) -> None:
     secrets = tmp_path / "secrets.yaml"
     secrets.write_text("api_key: supersecret\npassword: hidden\n")
@@ -107,3 +132,26 @@ def test_observe_writes_redacted_events(tmp_path: Path) -> None:
         assert "hidden" not in dumped
         assert "ZZZZYYYY" not in dumped
         assert "[redacted]" in dumped
+
+
+def test_observe_falls_back_to_header_auth(tmp_path: Path) -> None:
+    """Ensure observer retries auth without token when header auth is required."""
+
+    async def run_test() -> None:
+        server, url = await _serve_header_auth()
+        try:
+            await asyncio.wait_for(
+                observe(
+                    url,
+                    token="t",
+                    incident_dir=tmp_path,
+                    limit=0,
+                    secrets_path=tmp_path / "secrets.yaml",
+                ),
+                timeout=1,
+            )
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    asyncio.run(run_test())
