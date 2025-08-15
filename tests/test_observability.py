@@ -2,9 +2,10 @@ import asyncio
 import json
 from pathlib import Path
 
+import pytest
 import websockets
 
-from agent.observability import observe
+from agent.observability import observe, _authenticate
 
 
 def _event(event_type: str, data: dict) -> dict:
@@ -48,6 +49,21 @@ async def _serve_header_auth() -> str:
         await ws.send(json.dumps({"type": "auth_ok"}))
 
         await ws.recv()  # subscribe
+
+    server = await websockets.serve(handler, "localhost", 0)
+    port = server.sockets[0].getsockname()[1]
+    return server, f"ws://localhost:{port}"
+
+
+async def _serve_auth_failure() -> str:
+    """Server that always fails authentication."""
+
+    async def handler(ws):
+        await ws.send(json.dumps({"type": "auth_required"}))
+        await ws.recv()  # first auth attempt
+        await ws.send(json.dumps({"type": "auth_invalid"}))
+        await ws.recv()  # token auth attempt
+        await ws.send(json.dumps({"type": "auth_invalid"}))
 
     server = await websockets.serve(handler, "localhost", 0)
     port = server.sockets[0].getsockname()[1]
@@ -156,6 +172,23 @@ def test_observe_falls_back_to_header_auth(tmp_path: Path) -> None:
                 ),
                 timeout=1,
             )
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    asyncio.run(run_test())
+
+
+def test_auth_failure_includes_details(tmp_path: Path) -> None:
+    async def run_test() -> None:
+        server, url = await _serve_auth_failure()
+        try:
+            async with websockets.connect(url, subprotocols=["homeassistant"]) as ws:
+                with pytest.raises(RuntimeError) as ctx:
+                    await _authenticate(ws, "t")
+                detail = ctx.value.args[0].split(": ", 1)[1]
+                data = json.loads(detail)
+                assert data[-1]["type"] == "auth_invalid"
         finally:
             server.close()
             await server.wait_closed()

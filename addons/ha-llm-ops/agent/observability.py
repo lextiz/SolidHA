@@ -50,9 +50,12 @@ async def _authenticate(ws: Any, token: str) -> None:
     failure, retry without the token which allows header-based auth to succeed.
     """
 
+    messages = []
+
     msg = json.loads(await ws.recv())
+    messages.append(msg)
     if msg.get("type") != "auth_required":  # pragma: no cover - defensive
-        raise RuntimeError("unexpected auth sequence")
+        raise RuntimeError("unexpected auth sequence: %s" % json.dumps(messages, indent=2))
 
     # First attempt header-based authentication.  Some environments (e.g. the
     # Home Assistant Supervisor proxy) authenticate via the ``Authorization``
@@ -61,13 +64,16 @@ async def _authenticate(ws: Any, token: str) -> None:
     # directly to Home Assistant.
     await ws.send(json.dumps({"type": "auth"}))
     msg = json.loads(await ws.recv())
+    messages.append(msg)
 
     if msg.get("type") == "auth_invalid":
         await ws.send(json.dumps({"type": "auth", "access_token": token}))
         msg = json.loads(await ws.recv())
+        messages.append(msg)
 
     if msg.get("type") != "auth_ok":  # pragma: no cover - defensive
-        raise RuntimeError("authentication failed")
+        pretty = json.dumps(messages, indent=2)
+        raise RuntimeError(f"authentication failed: {pretty}")
 
 
 async def observe(
