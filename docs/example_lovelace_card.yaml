@@ -1,18 +1,24 @@
-# Example Lovelace setup polling the agent's incident endpoint.
+# Example Lovelace card showing recent analyses from the agent.
 #
-# Define a REST sensor in configuration.yaml:
+# Define a REST sensor in ``configuration.yaml``:
+#
 # sensor:
 #   - platform: rest
-#     name: incident_bundles
-#     resource: http://localhost:8000/incidents
+#     name: agent_analyses
+#     resource: http://localhost:8000/analyses
 #     scan_interval: 30
+#     value_template: "{{ value_json | tojson }}"
 #
-# Then add this card to your dashboard:
+# Then add this card to your dashboard to browse analyses.  The card lists
+# newest files first and clicking an entry reveals the parsed ``RcaResult``.
 type: markdown
-title: Agent Incidents
+title: Agent Analyses
 content: |
-  {% set incidents = states('sensor.incident_bundles') | from_json %}
-  {% for inc in incidents %}
-  - {{ inc }}
+  {% set data = states('sensor.agent_analyses') | from_json %}
+  {% for item in data | sort(reverse=True) %}
+  <details>
+    <summary>{{ item.file }}</summary>
+    <pre>{{ item.result | tojson(indent=2) }}</pre>
+  </details>
   {% endfor %}
 
