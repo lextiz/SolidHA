@@ -1,15 +1,34 @@
+import importlib.util
 import time
 from pathlib import Path
+from types import ModuleType
 
+import pytest
 import requests
 
-from agent.devux import start_http_server
+
+def _load_addon_devux() -> ModuleType:
+    path = Path(__file__).resolve().parent.parent / "addons/ha-llm-ops/agent/devux.py"
+    spec = importlib.util.spec_from_file_location("addon_devux", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
-def test_http_lists_incident_files(tmp_path: Path) -> None:
+@pytest.fixture(params=["core", "addon"])
+def devux(request: pytest.FixtureRequest) -> ModuleType:
+    if request.param == "core":
+        import agent.devux as module
+
+        return module
+    return _load_addon_devux()
+
+
+def test_http_lists_incident_files(devux: ModuleType, tmp_path: Path) -> None:
     (tmp_path / "incidents_1.jsonl").write_text("{}\n", encoding="utf-8")
     (tmp_path / "incidents_2.jsonl").write_text("{}\n", encoding="utf-8")
-    server = start_http_server(tmp_path, host="127.0.0.1", port=0)
+    server = devux.start_http_server(tmp_path, host="127.0.0.1", port=0)
     try:
         # Allow server thread to start
         time.sleep(0.1)
@@ -21,9 +40,26 @@ def test_http_lists_incident_files(tmp_path: Path) -> None:
         server.shutdown()
 
 
-def test_http_lists_analysis_files(tmp_path: Path) -> None:
+def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
+    (tmp_path / "incidents_1.jsonl").write_text("{}\n", encoding="utf-8")
     (tmp_path / "analyses_1.jsonl").write_text("{}\n", encoding="utf-8")
-    server = start_http_server(
+    server = devux.start_http_server(
+        tmp_path, analysis_dir=tmp_path, host="127.0.0.1", port=0
+    )
+    try:
+        time.sleep(0.1)
+        port = server.server_address[1]
+        resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
+        assert resp.status_code == 200
+        assert "incidents_1.jsonl" in resp.text
+        assert "analyses_1.jsonl" in resp.text
+    finally:
+        server.shutdown()
+
+
+def test_http_lists_analysis_files(devux: ModuleType, tmp_path: Path) -> None:
+    (tmp_path / "analyses_1.jsonl").write_text("{}\n", encoding="utf-8")
+    server = devux.start_http_server(
         tmp_path,
         analysis_dir=tmp_path,
         host="127.0.0.1",
@@ -39,8 +75,8 @@ def test_http_lists_analysis_files(tmp_path: Path) -> None:
         server.shutdown()
 
 
-def test_http_analyses_empty(tmp_path: Path) -> None:
-    server = start_http_server(
+def test_http_analyses_empty(devux: ModuleType, tmp_path: Path) -> None:
+    server = devux.start_http_server(
         tmp_path,
         analysis_dir=tmp_path,
         host="127.0.0.1",
@@ -56,12 +92,72 @@ def test_http_analyses_empty(tmp_path: Path) -> None:
         server.shutdown()
 
 
-def test_http_analyses_404(tmp_path: Path) -> None:
-    server = start_http_server(tmp_path, host="127.0.0.1", port=0)
+def test_http_analyses_404(devux: ModuleType, tmp_path: Path) -> None:
+    server = devux.start_http_server(tmp_path, host="127.0.0.1", port=0)
     try:
         time.sleep(0.1)
         port = server.server_address[1]
         resp = requests.get(f"http://127.0.0.1:{port}/analyses", timeout=5)
+        assert resp.status_code == 404
+    finally:
+        server.shutdown()
+
+
+def test_http_get_incident_file(devux: ModuleType, tmp_path: Path) -> None:
+    (tmp_path / "incidents_1.jsonl").write_text("{}", encoding="utf-8")
+    server = devux.start_http_server(tmp_path, host="127.0.0.1", port=0)
+    try:
+        time.sleep(0.1)
+        port = server.server_address[1]
+        resp = requests.get(
+            f"http://127.0.0.1:{port}/incidents/incidents_1.jsonl", timeout=5
+        )
+        assert resp.status_code == 200
+        assert resp.text == "{}"
+    finally:
+        server.shutdown()
+
+
+def test_http_get_incident_file_404(devux: ModuleType, tmp_path: Path) -> None:
+    server = devux.start_http_server(tmp_path, host="127.0.0.1", port=0)
+    try:
+        time.sleep(0.1)
+        port = server.server_address[1]
+        resp = requests.get(
+            f"http://127.0.0.1:{port}/incidents/missing.jsonl", timeout=5
+        )
+        assert resp.status_code == 404
+    finally:
+        server.shutdown()
+
+
+def test_http_get_analysis_file(devux: ModuleType, tmp_path: Path) -> None:
+    (tmp_path / "analyses_1.jsonl").write_text("{}", encoding="utf-8")
+    server = devux.start_http_server(
+        tmp_path, analysis_dir=tmp_path, host="127.0.0.1", port=0
+    )
+    try:
+        time.sleep(0.1)
+        port = server.server_address[1]
+        resp = requests.get(
+            f"http://127.0.0.1:{port}/analyses/analyses_1.jsonl", timeout=5
+        )
+        assert resp.status_code == 200
+        assert resp.text == "{}"
+    finally:
+        server.shutdown()
+
+
+def test_http_get_analysis_file_404(devux: ModuleType, tmp_path: Path) -> None:
+    server = devux.start_http_server(
+        tmp_path, analysis_dir=tmp_path, host="127.0.0.1", port=0
+    )
+    try:
+        time.sleep(0.1)
+        port = server.server_address[1]
+        resp = requests.get(
+            f"http://127.0.0.1:{port}/analyses/missing.jsonl", timeout=5
+        )
         assert resp.status_code == 404
     finally:
         server.shutdown()

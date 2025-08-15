@@ -6,7 +6,7 @@ lint:
 >mypy agent
 
 test:
->pytest --cov=agent --cov-report=term-missing
+>pytest --cov=agent --cov=addons/ha-llm-ops/agent --cov-report=term-missing
 
 format:
 >ruff format .
