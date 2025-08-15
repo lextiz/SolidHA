@@ -16,6 +16,10 @@ from websockets.exceptions import ConnectionClosed
 from .redact import load_secret_keys, redact
 
 
+class AuthenticationError(RuntimeError):
+    """Raised when Home Assistant authentication fails."""
+
+
 class IncidentLogger:
     """Write events to rotating JSONL files."""
 
@@ -58,7 +62,7 @@ async def _authenticate(ws: Any, token: str, *, prefer_header: bool = False) -> 
     messages.append(msg)
     if msg.get("type") != "auth_required":  # pragma: no cover - defensive
         pretty = json.dumps(messages, indent=2)
-        raise RuntimeError(f"unexpected auth sequence: {pretty}")
+        raise AuthenticationError(f"unexpected auth sequence: {pretty}")
 
     if prefer_header:
         await ws.send(json.dumps({"type": "auth"}))
@@ -75,7 +79,7 @@ async def _authenticate(ws: Any, token: str, *, prefer_header: bool = False) -> 
 
     if msg.get("type") != "auth_ok":  # pragma: no cover - defensive
         pretty = json.dumps(messages, indent=2)
-        raise RuntimeError(f"authentication failed: {pretty}")
+        raise AuthenticationError(f"authentication failed: {pretty}")
 
 
 async def observe(
@@ -146,6 +150,13 @@ async def observe(
                     if limit is not None and processed >= limit:
                         return
         except ConnectionClosed as err:  # pragma: no cover - network error path
+            logging.exception("WebSocket error: %s", err)
+            if not prefer_header:
+                prefer_header = True
+                continue
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 30)
+        except AuthenticationError as err:  # pragma: no cover - auth error path
             logging.exception("WebSocket error: %s", err)
             if not prefer_header:
                 prefer_header = True
