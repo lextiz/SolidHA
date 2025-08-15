@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install .[dev]
-      - run: pytest --cov=agent --cov-report=xml
+      - run: pytest --cov=agent.analysis --cov-report=xml --cov-fail-under=85
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-xml
