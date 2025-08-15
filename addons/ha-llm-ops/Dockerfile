@@ -1,7 +1,7 @@
 FROM alpine:3.19.1
 
 RUN apk add --no-cache python3 py3-pip jq \
-    && pip install --no-cache-dir pydantic PyYAML websockets
+    && pip install --no-cache-dir --break-system-packages pydantic PyYAML websockets
 
 WORKDIR /app
 COPY agent /app/agent
