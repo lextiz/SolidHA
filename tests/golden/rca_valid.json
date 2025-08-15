@@ -13,6 +13,7 @@
   "tests": [
     "integration X responds",
     "automation Y executes"
-  ]
+  ],
+  "recurrence_pattern": "integration X.*"
 }
 
