@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 
 from .types import IncidentRef
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _parse_time(value: str) -> datetime | None:
@@ -57,7 +60,9 @@ def list_incidents(
             if end is None or parsed > end:
                 end = parsed
         if start is not None and end is not None:
+            LOGGER.debug("incident %s: start=%s end=%s", path, start, end)
             refs.append(IncidentRef(path, start, end))
+    LOGGER.debug("listed %d incident(s) in %s", len(refs), directory)
     return refs
 
 

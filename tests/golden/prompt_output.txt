@@ -71,6 +71,11 @@ Schema:
       "title": "Root Cause",
       "type": "string"
     },
+    "summary": {
+      "description": "Short summary of the incident",
+      "title": "Summary",
+      "type": "string"
+    },
     "tests": {
       "description": "Checks to verify the issue is resolved",
       "items": {
@@ -81,6 +86,7 @@ Schema:
     }
   },
   "required": [
+    "summary",
     "root_cause",
     "impact",
     "confidence",

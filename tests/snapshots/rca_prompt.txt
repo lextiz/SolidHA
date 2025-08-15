@@ -27,6 +27,11 @@ Schema:
   },
   "description": "LLM-provided root cause analysis result.",
   "properties": {
+    "summary": {
+      "description": "Short summary of the incident",
+      "title": "Summary",
+      "type": "string"
+    },
     "root_cause": {
       "description": "Primary reason for the incident",
       "title": "Root Cause",
@@ -80,6 +85,7 @@ Schema:
     }
   },
   "required": [
+    "summary",
     "root_cause",
     "impact",
     "confidence",
