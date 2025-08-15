@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -39,8 +39,8 @@ class OpenAI(LLM):
         }
         resp = requests.post(_API_URL, headers=headers, json=payload, timeout=timeout)
         resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        data = cast(dict[str, Any], resp.json())
+        return cast(str, data["choices"][0]["message"]["content"])
 
 
 __all__ = ["OpenAI"]
