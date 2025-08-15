@@ -6,7 +6,7 @@ import logging
 import os
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -32,7 +32,7 @@ class AnalysisLogger:
         self._file: TextIO = self._open_file()
 
     def _open_file(self) -> TextIO:
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         path = self.directory / f"analyses_{timestamp}_{self._counter}.jsonl"
         self._counter += 1
         return path.open("a", encoding="utf-8")
