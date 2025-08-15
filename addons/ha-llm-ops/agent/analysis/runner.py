@@ -20,6 +20,8 @@ from .prompt_builder import build_prompt
 from .storage import list_incidents
 from .types import IncidentRef
 
+LOGGER = logging.getLogger(__name__)
+
 
 class AnalysisLogger:
     """Write analysis results to rotating JSONL files."""
@@ -86,34 +88,50 @@ class AnalysisRunner:
         self.patterns = PatternStore(patterns_path)
 
     def _analyze(self, incident: IncidentRef) -> None:
+        LOGGER.debug("building context for %s", incident.path)
         bundle = build_context(incident, max_lines=self.max_lines)
+        LOGGER.debug(
+            "context for %s has %d event(s)",
+            incident.path,
+            len(bundle.events),
+        )
         context_text = json.dumps(bundle.events, sort_keys=True)
         matched = self.patterns.match(context_text)
         if matched:
+            LOGGER.info("incident %s matched pattern %s", incident.path, matched)
             self.patterns.update(matched, incident.end)
             return
         prompt = build_prompt(bundle)
+        LOGGER.debug("sending prompt to LLM for %s", incident.path)
         raw = self.llm.generate(prompt.text, timeout=30)
+        LOGGER.debug("LLM response for %s: %s", incident.path, raw)
         result = parse_result(raw)
+        LOGGER.debug("parsed LLM result for %s: %s", incident.path, result)
         record = {"incident": str(incident.path), "result": result.model_dump()}
         self.logger.write(record)
+        LOGGER.info("analysis recorded for %s", incident.path)
         pattern = getattr(result, "recurrence_pattern", None)
         if pattern and validate_pattern(pattern):
+            LOGGER.debug("adding recurrence pattern for %s: %s", incident.path, pattern)
             self.patterns.add(pattern, incident.end)
 
     def run_once(self) -> None:
         now = self._now()
         if now < self._next_run:
             return
+        LOGGER.debug("scanning incidents in %s", self.incident_dir)
         incidents = list_incidents(self.incident_dir)
+        LOGGER.debug("found %d incident(s)", len(incidents))
         try:
             for inc in incidents:
                 if inc.path in self._processed:
+                    LOGGER.debug("skipping already processed incident %s", inc.path)
                     continue
+                LOGGER.debug("processing incident %s", inc.path)
                 self._analyze(inc)
                 self._processed.add(inc.path)
         except Exception:  # pragma: no cover - defensive
-            logging.exception("analysis failed")
+            LOGGER.exception("analysis failed")
             self._next_run = now + self._backoff
             self._backoff = min(self._backoff * 2, 60)
             return

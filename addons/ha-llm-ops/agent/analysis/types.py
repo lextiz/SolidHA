@@ -20,6 +20,7 @@ class IncidentRef:
     path: Path
     start: datetime
     end: datetime
+    title: str | None = None
 
 
 @dataclass(slots=True, frozen=True)
