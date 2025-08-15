@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import html
 import json
 import threading
-from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote
@@ -36,15 +36,18 @@ def _last_occurrence(path: Path) -> str:
                     return str(record[key])
     except Exception:  # pragma: no cover - defensive
         pass
-    return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
+    return dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.UTC).isoformat()
 
 
 def render_index(entries: list[tuple[str, str]]) -> bytes:
     """Render a minimal HTML page for incidents with details links."""
     html_parts = [
         "<html><head><title>HA LLM Ops</title>",
-        "<style>table{border-collapse:collapse;}th,td{padding:4px;border:1px solid #ccc;}"
-        "body{font-family:sans-serif;}</style>",
+        "<style>",
+        "table{border-collapse:collapse;}",
+        "th,td{padding:4px;border:1px solid #ccc;}",
+        "body{font-family:sans-serif;}",
+        "</style>",
         "</head><body>",
         "<h1>Incidents</h1>",
         "<table>",
