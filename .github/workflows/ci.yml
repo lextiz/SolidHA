@@ -26,6 +26,11 @@ jobs:
           python-version: '3.11'
       - run: pip install .[dev]
       - run: pytest --cov=agent --cov-report=xml
+      - uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          fail_ci_if_error: true
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-xml
