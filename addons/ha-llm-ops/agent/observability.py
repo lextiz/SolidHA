@@ -57,7 +57,8 @@ async def _authenticate(ws: Any, token: str, *, prefer_header: bool = False) -> 
     msg = json.loads(await ws.recv())
     messages.append(msg)
     if msg.get("type") != "auth_required":  # pragma: no cover - defensive
-        raise RuntimeError("unexpected auth sequence: %s" % json.dumps(messages, indent=2))
+        pretty = json.dumps(messages, indent=2)
+        raise RuntimeError(f"unexpected auth sequence: {pretty}")
 
     if prefer_header:
         await ws.send(json.dumps({"type": "auth"}))

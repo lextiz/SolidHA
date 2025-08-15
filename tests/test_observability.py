@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import websockets
 
-from agent.observability import observe, _authenticate
+from agent.observability import _authenticate, observe
 
 
 def _event(event_type: str, data: dict) -> dict:
