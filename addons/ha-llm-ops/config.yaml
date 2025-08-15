@@ -19,6 +19,7 @@ options:
   analysis_max_lines: 50
   llm_backend: mock
   openai_api_key: ""
+  ha_ws_url: ws://supervisor/core/websocket
 schema:
   log_level: list(debug|info|warning|error)?
   buffer_size: int
@@ -27,3 +28,4 @@ schema:
   analysis_max_lines: int
   llm_backend: list(mock|openai)?
   openai_api_key: password?
+  ha_ws_url: str?
