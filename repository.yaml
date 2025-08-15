@@ -2,3 +2,5 @@
 name: SolidHA Add-on Repository
 url: 'https://github.com/lextiz/SolidHA'
 maintainer: Alexander Bolshakov <1011830+lextiz@users.noreply.github.com>
+icon: addons/ha-llm-ops/icon.png
+logo: addons/ha-llm-ops/icon.png
