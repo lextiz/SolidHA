@@ -361,3 +361,5 @@ Apache-2.0. See `LICENSE`.
 ## Acknowledgments
 
 This project builds on the Home Assistant ecosystem and the broader OSS community. Thank you to contributors and reviewers who keep the CI green and the scope sharp.
+
+Project icon by [Umeicon](https://www.flaticon.com/authors/umeicon).
