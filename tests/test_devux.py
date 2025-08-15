@@ -52,7 +52,30 @@ def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
         resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
         assert resp.status_code == 200
         assert "incidents_1.jsonl" in resp.text
-        assert "analyses_1.jsonl" in resp.text
+        assert 'href="details/incidents_1.jsonl"' in resp.text
+    finally:
+        server.shutdown()
+
+
+def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
+    inc_data = "{\"time_fired\":\"2024-01-01T00:00:00+00:00\"}"
+    ana_data = "{\"result\":\"ok\"}"
+    (tmp_path / "incidents_1.jsonl").write_text(inc_data, encoding="utf-8")
+    (tmp_path / "analyses_1.jsonl").write_text(ana_data, encoding="utf-8")
+    server = devux.start_http_server(
+        tmp_path, analysis_dir=tmp_path, host="127.0.0.1", port=0
+    )
+    try:
+        time.sleep(0.1)
+        port = server.server_address[1]
+        resp = requests.get(
+            f"http://127.0.0.1:{port}/details/incidents_1.jsonl", timeout=5
+        )
+        assert resp.status_code == 200
+        from html import escape as _escape
+
+        assert _escape(inc_data) in resp.text
+        assert _escape(ana_data) in resp.text
     finally:
         server.shutdown()
 
