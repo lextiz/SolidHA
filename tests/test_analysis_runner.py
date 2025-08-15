@@ -1,8 +1,12 @@
+import asyncio
 import json
 from pathlib import Path
 
+import pytest
+
 from agent.analysis.llm.mock import MockLLM
-from agent.analysis.runner import AnalysisRunner
+from agent.analysis.llm.openai import OpenAI
+from agent.analysis.runner import AnalysisRunner, create_llm
 
 
 def _incident(path: Path, ts: str) -> None:
@@ -111,3 +115,35 @@ def test_runner_rotation(tmp_path: Path) -> None:
     assert len(files) >= 2
     total = sum(len(f.read_text().splitlines()) for f in files)
     assert total == 5
+
+def test_create_llm_backend_selection(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert isinstance(create_llm(), MockLLM)
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
+    assert isinstance(create_llm(), OpenAI)
+    assert isinstance(create_llm("mock"), MockLLM)
+
+
+def test_run_forever_cancel(tmp_path: Path) -> None:
+    inc_dir = tmp_path / "inc"
+    out_dir = tmp_path / "out"
+    inc_dir.mkdir()
+    out_dir.mkdir()
+
+    runner = AnalysisRunner(
+        inc_dir,
+        out_dir,
+        MockLLM(),
+        rate_seconds=0,
+        max_lines=5,
+        max_bytes=1000,
+    )
+
+    async def run_and_cancel() -> None:
+        task = asyncio.create_task(runner.run_forever())
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(run_and_cancel())

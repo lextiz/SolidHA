@@ -48,6 +48,19 @@ Schema:
       "title": "Impact",
       "type": "string"
     },
+    "recurrence_pattern": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Regular expression detecting recurring incidents",
+      "title": "Recurrence Pattern"
+    },
     "risk": {
       "description": "Overall risk assessment of acting",
       "title": "Risk",

@@ -61,6 +61,19 @@
       },
       "title": "Tests",
       "type": "array"
+    },
+    "recurrence_pattern": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Regular expression detecting recurring incidents",
+      "title": "Recurrence Pattern"
     }
   },
   "required": [
