@@ -1,4 +1,4 @@
-"""OpenAI Chat API adapter."""
+"""OpenAI Responses API adapter."""
 
 from __future__ import annotations
 
@@ -10,14 +10,14 @@ import requests
 from .base import LLM
 
 _SYSTEM_PROMPT = "Respond with **only** valid JSON per schema below; no prose."
-_API_URL = "https://api.openai.com/v1/chat/completions"
+_API_URL = "https://api.openai.com/v1/responses"
 
 
 class OpenAI(LLM):
-    """LLM adapter using OpenAI's chat completion endpoint."""
+    """LLM adapter using OpenAI's responses endpoint."""
 
     def __init__(
-        self, model: str = "gpt-3.5-turbo", *, api_key: str | None = None
+        self, model: str = "gpt-4o-mini", *, api_key: str | None = None
     ) -> None:
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
@@ -31,16 +31,25 @@ class OpenAI(LLM):
         }
         payload: dict[str, Any] = {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
+            "input": [
+                {
+                    "role": "system",
+                    "content": [{"type": "text", "text": _SYSTEM_PROMPT}],
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": prompt}],
+                },
             ],
             "temperature": 0,
         }
         resp = requests.post(_API_URL, headers=headers, json=payload, timeout=timeout)
         resp.raise_for_status()
         data = cast(dict[str, Any], resp.json())
-        return cast(str, data["choices"][0]["message"]["content"])
+        text = data.get("output_text")
+        if not isinstance(text, str):
+            text = cast(str, data["output"][0]["content"][0]["text"])
+        return text
 
 
 __all__ = ["OpenAI"]
