@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import Any, TextIO
 
 from .context import build_context
 from .llm.base import LLM
@@ -27,15 +28,15 @@ class AnalysisLogger:
         self.max_bytes = max_bytes
         self.directory.mkdir(parents=True, exist_ok=True)
         self._counter = 0
-        self._file = self._open_file()
+        self._file: TextIO = self._open_file()
 
-    def _open_file(self):
+    def _open_file(self) -> TextIO:
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         path = self.directory / f"analyses_{timestamp}_{self._counter}.jsonl"
         self._counter += 1
         return path.open("a", encoding="utf-8")
 
-    def write(self, record: dict) -> None:
+    def write(self, record: dict[str, Any]) -> None:
         line = json.dumps(record, sort_keys=True)
         if self._file.tell() + len(line) + 1 > self.max_bytes:
             self._file.close()
