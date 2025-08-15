@@ -106,6 +106,7 @@ def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
         assert "why" in resp.text
         assert "time_fired" in resp.text
         assert "trigger" in resp.text
+        assert "Delete" in resp.text
     finally:
         server.shutdown()
 
@@ -212,5 +213,30 @@ def test_http_get_analysis_file_404(devux: ModuleType, tmp_path: Path) -> None:
             f"http://127.0.0.1:{port}/analyses/missing.jsonl", timeout=5
         )
         assert resp.status_code == 404
+    finally:
+        server.shutdown()
+
+
+def test_http_delete_incident(devux: ModuleType, tmp_path: Path) -> None:
+    inc = tmp_path / "incidents_1.jsonl"
+    inc.write_text("{}", encoding="utf-8")
+    ana_record = {"incident": str(inc), "result": {"summary": "s"}}
+    (tmp_path / "analyses_1.jsonl").write_text(
+        json.dumps(ana_record) + "\n", encoding="utf-8"
+    )
+    server = devux.start_http_server(
+        tmp_path, analysis_dir=tmp_path, host="127.0.0.1", port=0
+    )
+    try:
+        time.sleep(0.1)
+        port = server.server_address[1]
+        resp = requests.get(
+            f"http://127.0.0.1:{port}/delete/incidents_1.jsonl",
+            timeout=5,
+            allow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert not inc.exists()
+        assert not list(tmp_path.glob("analyses_*.jsonl"))
     finally:
         server.shutdown()

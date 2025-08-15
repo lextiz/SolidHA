@@ -22,6 +22,42 @@ def list_analyses(directory: Path) -> list[str]:
     return sorted(p.name for p in directory.glob("analyses_*.jsonl"))
 
 
+def delete_incident(
+    incident_dir: Path, name: str, analysis_dir: Path | None = None
+) -> None:
+    """Delete ``name`` from ``incident_dir`` and related analyses."""
+
+    inc_path = incident_dir / name
+    inc_path.unlink(missing_ok=True)
+    if analysis_dir is None:
+        return
+    inc_str = str(inc_path)
+    for path in analysis_dir.glob("analyses_*.jsonl"):
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:  # pragma: no cover - defensive
+            continue
+        new_lines: list[str] = []
+        changed = False
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:  # pragma: no cover - defensive
+                new_lines.append(line)
+                continue
+            if record.get("incident") == inc_str:
+                changed = True
+                continue
+            new_lines.append(line)
+        if changed:
+            if new_lines:
+                path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+            else:
+                path.unlink(missing_ok=True)
+
+
 def _format_ts(value: str) -> str:
     """Return ``value`` formatted as ``YYYY-MM-DD HH:MM:SS`` if possible."""
     try:
@@ -180,6 +216,7 @@ def render_details(
         last_seen=html.escape(last_seen),
         incident=incident_html,
         analysis=analysis_html,
+        name=html.escape(name),
     )
     return body.encode("utf-8")
 
@@ -250,6 +287,12 @@ def start_http_server(
                 body = file_path.read_bytes()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
+            elif path.startswith("/delete/"):
+                name = path.split("/", 2)[2]
+                delete_incident(incident_dir, name, analysis_dir)
+                self.send_response(303)
+                self.send_header("Location", "/")
+                body = b""
             else:
                 self.send_response(404)
                 self.end_headers()
