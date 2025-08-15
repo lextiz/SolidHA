@@ -95,7 +95,7 @@ def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
         )
         assert resp.status_code == 200
         assert "system broken" in resp.text
-        assert "1 occurrence" in resp.text
+        assert "Occurrences: 1" in resp.text
         assert "Candidate Actions" in resp.text
     finally:
         server.shutdown()
