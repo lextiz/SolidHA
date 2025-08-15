@@ -8,7 +8,6 @@ from typing import Any
 
 from .types import ContextBundle, Prompt, RcaOutput
 
-
 _GUARDRAILS = (
     "You are a Home Assistant diagnostics agent. "
     "Respond only with JSON matching the provided schema. "
@@ -17,12 +16,12 @@ _GUARDRAILS = (
 
 
 def _package_version() -> str:
-    """Return the installed package version or ``unknown``."""
+    """Return the installed package version or ``0.0.0``."""
 
     try:
         return metadata.version("solidha-agent")
     except metadata.PackageNotFoundError:  # pragma: no cover - fallback for tests
-        return "unknown"
+        return "0.0.0"
 
 
 def build_prompt(bundle: ContextBundle) -> Prompt:
