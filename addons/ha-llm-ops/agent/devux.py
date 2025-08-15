@@ -45,7 +45,7 @@ def _last_occurrence(path: Path) -> str:
                     return _format_ts(str(record[key]))
     except Exception:  # pragma: no cover - defensive
         pass
-    return _format_ts(dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.UTC).isoformat())
+    return _format_ts(dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.UTC).isoformat())  # noqa: E501
 
 
 def _load_analyses(directory: Path) -> dict[str, dict[str, object]]:
@@ -111,7 +111,7 @@ def render_index(entries: list[tuple[str, str, str]]) -> bytes:
     return "".join(html_parts).encode("utf-8")
 
 
-def render_details(name: str, incident_path: Path, analysis: dict[str, object] | None) -> bytes:
+def render_details(name: str, incident_path: Path, analysis: dict[str, object] | None) -> bytes:  # noqa: E501
     """Render an incident details page including its analysis if available."""
     incident_lines = [
         line
@@ -146,17 +146,17 @@ def render_details(name: str, incident_path: Path, analysis: dict[str, object] |
         "</head><body>",
         "<div class='card'>",
         f"<h1>{html.escape(title)}</h1>",
-        f"<p>Occurrences: {occurrences} {'occurrence' if occurrences == 1 else 'occurrences'}<br>"
+        f"<p>Occurrences: {occurrences} {'occurrence' if occurrences == 1 else 'occurrences'}<br>"  # noqa: E501
         f"Last occurrence: {html.escape(last_seen)}</p>",
         "<h2>Analysis</h2>",
     ]
     if isinstance(analysis, dict):
         parts.extend([
             "<ul>",
-            f"<li><strong>Root Cause:</strong> {html.escape(str(analysis.get('root_cause', '')))}</li>",
-            f"<li><strong>Impact:</strong> {html.escape(str(analysis.get('impact', '')))}</li>",
-            f"<li><strong>Confidence:</strong> {html.escape(str(analysis.get('confidence', '')))}</li>",
-            f"<li><strong>Risk:</strong> {html.escape(str(analysis.get('risk', '')))}</li>",
+            f"<li><strong>Root Cause:</strong> {html.escape(str(analysis.get('root_cause', '')))}</li>",  # noqa: E501
+            f"<li><strong>Impact:</strong> {html.escape(str(analysis.get('impact', '')))}</li>",  # noqa: E501
+            f"<li><strong>Confidence:</strong> {html.escape(str(analysis.get('confidence', '')))}</li>",  # noqa: E501
+            f"<li><strong>Risk:</strong> {html.escape(str(analysis.get('risk', '')))}</li>",  # noqa: E501
         ])
         actions = analysis.get("candidate_actions") or []
         if actions:
@@ -174,7 +174,7 @@ def render_details(name: str, incident_path: Path, analysis: dict[str, object] |
             parts.append("</ul></li>")
         if "recurrence_pattern" in analysis:
             parts.append(
-                f"<li><strong>Recurrence Pattern:</strong> {html.escape(str(analysis['recurrence_pattern']))}</li>"
+                f"<li><strong>Recurrence Pattern:</strong> {html.escape(str(analysis['recurrence_pattern']))}</li>"  # noqa: E501
             )
         parts.append("</ul>")
     else:
