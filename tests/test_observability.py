@@ -27,42 +27,6 @@ async def _serve(events: list[dict]) -> str:
     return server, f"ws://localhost:{port}"
 
 
-async def _serve_header_auth() -> str:
-    """Server that requires header-based authentication and forces a retry."""
-
-    call_count = 0
-
-    async def handler(ws):
-        nonlocal call_count
-        call_count += 1
-        # Ensure we received the Authorization header
-        headers = getattr(ws, "request_headers", None)
-        if headers is None:  # websockets >=15
-            headers = ws.request.headers
-        assert headers["Authorization"] == "Bearer t"
-        await ws.send(json.dumps({"type": "auth_required"}))
-
-        msg = json.loads(await ws.recv())
-        if call_count == 1:
-            # Token-based attempt should trigger reconnect
-            assert msg == {"type": "auth", "access_token": "t"}
-            await ws.close()
-            return
-
-        # Second connection uses header auth
-        assert msg == {"type": "auth"}
-        await ws.send(json.dumps({"type": "auth_invalid"}))
-        msg = json.loads(await ws.recv())
-        assert msg == {"type": "auth", "access_token": "t"}
-        await ws.send(json.dumps({"type": "auth_ok"}))
-        await ws.recv()  # subscribe
-        await ws.close()
-
-    server = await websockets.serve(handler, "localhost", 0)
-    port = server.sockets[0].getsockname()[1]
-    return server, f"ws://localhost:{port}"
-
-
 async def _serve_auth_failure() -> str:
     """Server that always fails token authentication."""
 
@@ -71,39 +35,6 @@ async def _serve_auth_failure() -> str:
         msg = json.loads(await ws.recv())
         assert msg == {"type": "auth", "access_token": "t"}
         await ws.send(json.dumps({"type": "auth_invalid"}))
-
-    server = await websockets.serve(handler, "localhost", 0)
-    port = server.sockets[0].getsockname()[1]
-    return server, f"ws://localhost:{port}"
-
-
-async def _serve_header_auth_invalid() -> str:
-    """Server that responds with auth_invalid before closing the first attempt."""
-
-    call_count = 0
-
-    async def handler(ws):
-        nonlocal call_count
-        call_count += 1
-        headers = getattr(ws, "request_headers", None)
-        if headers is None:  # websockets >=15
-            headers = ws.request.headers
-        assert headers["Authorization"] == "Bearer t"
-        await ws.send(json.dumps({"type": "auth_required"}))
-        msg = json.loads(await ws.recv())
-        if call_count == 1:
-            assert msg == {"type": "auth", "access_token": "t"}
-            await ws.send(json.dumps({"type": "auth_invalid"}))
-            await ws.close()
-            return
-
-        assert msg == {"type": "auth"}
-        await ws.send(json.dumps({"type": "auth_invalid"}))
-        msg = json.loads(await ws.recv())
-        assert msg == {"type": "auth", "access_token": "t"}
-        await ws.send(json.dumps({"type": "auth_ok"}))
-        await ws.recv()  # subscribe
-        await ws.close()
 
     server = await websockets.serve(handler, "localhost", 0)
     port = server.sockets[0].getsockname()[1]
@@ -196,57 +127,11 @@ def test_observe_writes_redacted_events(tmp_path: Path) -> None:
         assert "[redacted]" in dumped
 
 
-def test_observe_falls_back_to_header_auth(tmp_path: Path) -> None:
-    """Ensure observer reconnects and retries with header auth."""
-
-    async def run_test() -> None:
-        server, url = await _serve_header_auth()
-        try:
-            await asyncio.wait_for(
-                observe(
-                    url,
-                    token="t",
-                    incident_dir=tmp_path,
-                    limit=0,
-                    secrets_path=tmp_path / "secrets.yaml",
-                ),
-                timeout=1,
-            )
-        finally:
-            server.close()
-            await server.wait_closed()
-
-    asyncio.run(run_test())
-
-
-def test_observe_recovers_from_auth_invalid(tmp_path: Path) -> None:
-    """Ensure observer retries with header auth after auth_invalid message."""
-
-    async def run_test() -> None:
-        server, url = await _serve_header_auth_invalid()
-        try:
-            await asyncio.wait_for(
-                observe(
-                    url,
-                    token="t",
-                    incident_dir=tmp_path,
-                    limit=0,
-                    secrets_path=tmp_path / "secrets.yaml",
-                ),
-                timeout=1,
-            )
-        finally:
-            server.close()
-            await server.wait_closed()
-
-    asyncio.run(run_test())
-
-
 def test_auth_failure_includes_details(tmp_path: Path) -> None:
     async def run_test() -> None:
         server, url = await _serve_auth_failure()
         try:
-            async with websockets.connect(url, subprotocols=["homeassistant"]) as ws:
+            async with websockets.connect(url) as ws:
                 with pytest.raises(AuthenticationError) as ctx:
                     await _authenticate(ws, "t")
                 detail = ctx.value.args[0].split(": ", 1)[1]
