@@ -8,4 +8,4 @@ The HA LLM Ops add-on observes your Home Assistant system and uses a language mo
 - Generates root cause analyses and remediation recommendations
 - Provides a built-in panel to review findings
 
-For full project details and source code, visit https://github.com/lextiz/SolidHA.
+For full project details and source code, visit the [GitHub repository](https://github.com/lextiz/SolidHA).
