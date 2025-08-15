@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "solidha-agent"
+version = "0.0.0"
+description = "HA LLM Ops agent"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "websockets>=12.0",
+    "PyYAML>=6.0",
+    "pydantic>=2.0",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1.7",
+    "mypy>=1.7",
+    "pre-commit>=3.4",
+    "types-requests",
+    "types-PyYAML",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[tool.pytest.ini_options]
+markers = ["integration: mark tests requiring Docker"]
+pythonpath = ["."]
+
+[tool.setuptools]
+packages = ["agent"]
