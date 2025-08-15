@@ -29,3 +29,5 @@ schema:
   llm_backend: list(mock|openai)?
   openai_api_key: password?
   ha_ws_url: str?
+icon: addons/ha-llm-ops/icon.png
+logo: addons/ha-llm-ops/icon.png
