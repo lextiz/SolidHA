@@ -40,4 +40,3 @@ Additional environment variables control analysis behaviour:
 - Set `LLM_BACKEND=MOCK` to run tests without network access.
 - Real LLM tests are only executed when `OPENAI_API_KEY` is defined.
 - Run `make pre-commit` before committing to execute linters and tests.
-
