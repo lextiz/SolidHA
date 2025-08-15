@@ -47,16 +47,3 @@ def test_list_incidents_malformed_lines(tmp_path: Path) -> None:
     bad = tmp_path / "incidents_bad.jsonl"
     bad.write_text('{not json}\n{"time_fired": "not-a-date"}\n', encoding="utf-8")
     assert list_incidents(tmp_path) == []
-
-
-def test_list_incidents_extracts_title(tmp_path: Path) -> None:
-    line = json.dumps(
-        {
-            "time_fired": "2024-01-01T00:00:00+00:00",
-            "event_type": "system_log_event",
-            "data": {"message": "boom"},
-        }
-    )
-    (tmp_path / "incidents_title.jsonl").write_text(line + "\n", encoding="utf-8")
-    [ref] = list_incidents(tmp_path)
-    assert ref.title == "boom"

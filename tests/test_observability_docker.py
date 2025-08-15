@@ -33,7 +33,6 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
 
     config_dir = tmp_path / "config"
     config_dir.mkdir()
-    (config_dir / "secrets.yaml").write_text("")
     (config_dir / "configuration.yaml").write_text(
         "system_log:\n  fire_event: true\nautomation: !include automations.yaml\n"
     )
@@ -116,7 +115,6 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
                         ws_url,
                         token=token,
                         incident_dir=incident_dir,
-                        secrets_path=config_dir / "secrets.yaml",
                     ),
                     timeout=60,
                 )

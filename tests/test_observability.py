@@ -41,10 +41,7 @@ async def _serve_auth_failure() -> str:
     return server, f"ws://localhost:{port}"
 
 
-def test_observe_writes_redacted_events(tmp_path: Path) -> None:
-    secrets = tmp_path / "secrets.yaml"
-    secrets.write_text("api_key: supersecret\npassword: hidden\n")
-
+def test_observe_writes_events(tmp_path: Path) -> None:
     events = [
         _event(
             "system_log_event",
@@ -96,7 +93,6 @@ def test_observe_writes_redacted_events(tmp_path: Path) -> None:
                     incident_dir=tmp_path,
                     max_bytes=120,
                     limit=3,
-                    secrets_path=secrets,
                 ),
                 timeout=3,
             )
@@ -119,12 +115,6 @@ def test_observe_writes_redacted_events(tmp_path: Path) -> None:
         "trace",
         "state_changed",
     }
-    for line in lines:
-        dumped = json.dumps(line)
-        assert "supersecret" not in dumped
-        assert "hidden" not in dumped
-        assert "ZZZZYYYY" not in dumped
-        assert "[redacted]" in dumped
 
 
 def test_auth_failure_includes_details(tmp_path: Path) -> None:

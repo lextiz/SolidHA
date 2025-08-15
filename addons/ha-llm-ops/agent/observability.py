@@ -13,8 +13,6 @@ from typing import Any, TextIO
 import websockets
 from websockets.exceptions import ConnectionClosed, InvalidHandshake
 
-from .redact import load_secret_keys, redact
-
 
 class AuthenticationError(RuntimeError):
     """Raised when Home Assistant authentication fails."""
@@ -77,10 +75,8 @@ async def observe(
     *,
     max_bytes: int = 1_000_000,
     limit: int | None = None,
-    secrets_path: Path = Path("/config/secrets.yaml"),
 ) -> None:
     """Connect to the HA WebSocket API and persist selected events."""
-    secret_keys = load_secret_keys(secrets_path)
     logger = IncidentLogger(incident_dir, max_bytes=max_bytes)
     backoff = 1
     processed = 0
@@ -131,8 +127,7 @@ async def observe(
                     if not should_log:
                         continue
 
-                    redacted = redact(event, secret_keys)
-                    logger.write(redacted)
+                    logger.write(event)
                     processed += 1
                     if limit is not None and processed >= limit:
                         return

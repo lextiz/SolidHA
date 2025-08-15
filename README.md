@@ -73,7 +73,7 @@ Home Assistant is powerful, but complex stacks (integrations, add-ons, flaky dev
 
 - **Context Packager**
 
-  - Curates redacted bundles: relevant logs, YAML snippets, entity snapshots, integration configs, versions.
+  - Curates bundles: relevant logs, YAML snippets, entity snapshots, integration configs, versions.
 
 - **RCA & Planner (LLM)**
 
@@ -206,7 +206,7 @@ ha-llm-ops/
 
   - Agent connects to HA WebSocket (configurable URL/token for dev vs Supervisor token in add-on).
 
-  - Subscribes to key events, collects error traces, writes redacted incident bundles to disk.
+  - Subscribes to key events, collects error traces, writes incident bundles to disk.
 
 - **M0.3 – RCA Contract (No Calls)**
 
@@ -237,8 +237,8 @@ Below are ready-to-run bite-sized tasks for the autonomous agent. Each bullet is
 
 1. **Task:** Add `agent/analysis/context.py`.
 
-    - Build `ContextBundle` from recent events around an incident (last N lines), deduplicate noisy repeats, enforce redaction.
-    - Unit tests: verify redaction, dedupe, size limits.
+    - Build `ContextBundle` from recent events around an incident (last N lines) and deduplicate noisy repeats.
+    - Unit tests: verify dedupe and size limits.
 
 ### M1.1 – Prompt builder
 
