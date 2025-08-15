@@ -13,23 +13,37 @@ def list_incidents(directory: Path) -> list[str]:
     return sorted(p.name for p in directory.glob("incidents_*.jsonl"))
 
 
-def start_http_server(
-    directory: Path, host: str = "0.0.0.0", port: int = 8000
-) -> ThreadingHTTPServer:
-    """Start a thread-based HTTP server exposing incident bundles.
+def list_analyses(directory: Path) -> list[str]:
+    """Return sorted analysis bundle file names."""
+    return sorted(p.name for p in directory.glob("analyses_*.jsonl"))
 
-    The server provides a single endpoint ``/incidents`` returning a JSON list of
-    bundles found in ``directory``. It runs in a background thread and returns the
-    server instance for optional shutdown.
+
+def start_http_server(
+    incident_dir: Path,
+    *,
+    analysis_dir: Path | None = None,
+    host: str = "0.0.0.0",
+    port: int = 8000,
+) -> ThreadingHTTPServer:
+    """Start a thread-based HTTP server exposing incident and analysis bundles.
+
+    The server provides ``/incidents`` and ``/analyses`` endpoints returning JSON
+    lists of bundles found in ``incident_dir`` and ``analysis_dir`` respectively.
+    It runs in a background thread and returns the server instance for optional
+    shutdown.
     """
 
     class Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:
-            if self.path.rstrip("/") != "/incidents":
+        def do_GET(self) -> None:  # noqa: D401 - HTTP handler
+            path = self.path.rstrip("/")
+            if path == "/incidents":
+                bundles = list_incidents(incident_dir)
+            elif path == "/analyses" and analysis_dir is not None:
+                bundles = list_analyses(analysis_dir)
+            else:
                 self.send_response(404)
                 self.end_headers()
                 return
-            bundles = list_incidents(directory)
             body = json.dumps(bundles).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
