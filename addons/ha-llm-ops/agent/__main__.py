@@ -23,7 +23,9 @@ def main() -> None:
     rate = float(os.environ.get("ANALYSIS_RATE_SECONDS", "60"))
     max_lines = int(os.environ.get("ANALYSIS_MAX_LINES", "50"))
     backend = os.environ.get("LLM_BACKEND")
-    ws_url = os.environ.get("HA_WS_URL", "ws://localhost:8123/api/websocket")
+    ws_url = os.environ.get(
+        "HA_WS_URL", "ws://supervisor/core/websocket"
+    )
     token = os.environ.get("SUPERVISOR_TOKEN", "")
     logging.info(
         "Agent starting (log level: %s, buffer size: %s, incident dir: %s, ws: %s)",
