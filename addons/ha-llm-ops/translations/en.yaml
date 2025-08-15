@@ -1,0 +1,22 @@
+configuration:
+  log_level:
+    name: Log level
+    description: Logging verbosity
+  buffer_size:
+    name: Buffer size
+    description: Number of log lines to retain
+  incident_dir:
+    name: Incident directory
+    description: Folder to store incident files
+  analysis_rate_seconds:
+    name: Analysis rate (seconds)
+    description: How often logs are analyzed
+  analysis_max_lines:
+    name: Max analysis lines
+    description: Maximum lines considered per analysis
+  llm_backend:
+    name: LLM backend
+    description: Backend used for analysis
+  openai_api_key:
+    name: OpenAI API key
+    description: API key used when OpenAI backend is selected
