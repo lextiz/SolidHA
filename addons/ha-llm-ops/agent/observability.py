@@ -94,9 +94,12 @@ async def observe(
 
     while True:
         try:
+            logging.info("Connecting to Home Assistant WebSocket at %s", url)
             async with websockets.connect(url, **kwargs) as ws:
                 await _authenticate(ws, token)
+                logging.info("Authenticated with Home Assistant WebSocket")
                 await ws.send(json.dumps({"id": 1, "type": "subscribe_events"}))
+                logging.info("Subscribed to Home Assistant events")
                 async for message in ws:
                     data = json.loads(message)
                     if data.get("type") != "event":
@@ -141,14 +144,17 @@ async def observe(
             continue
         except ConnectionClosed as err:  # pragma: no cover - network error path
             logging.exception("WebSocket error: %s", err)
+            logging.info("Retrying WebSocket connection in %s seconds", backoff)
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30)
         except AuthenticationError as err:  # pragma: no cover - auth error path
             logging.exception("WebSocket error: %s", err)
+            logging.info("Retrying WebSocket connection in %s seconds", backoff)
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30)
         except Exception as err:  # pragma: no cover - network error path
             logging.exception("WebSocket error: %s", err)
+            logging.info("Retrying WebSocket connection in %s seconds", backoff)
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 30)
         else:  # pragma: no cover - connection closed gracefully
