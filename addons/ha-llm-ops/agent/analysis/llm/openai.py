@@ -17,11 +17,16 @@ class OpenAI(LLM):
     """LLM adapter using OpenAI's responses endpoint."""
 
     def __init__(
-        self, model: str = "gpt-5", *, api_key: str | None = None
+        self,
+        model: str = "gpt-5",
+        *,
+        api_key: str | None = None,
+        project_id: str | None = None,
     ) -> None:
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise RuntimeError("OPENAI_API_KEY is not set")
+        self.project_id = project_id or os.getenv("OPENAI_PROJECT_ID")
         self.model = model
 
     def generate(self, prompt: str, *, timeout: float) -> str:
@@ -29,6 +34,8 @@ class OpenAI(LLM):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+        if self.project_id:
+            headers["OpenAI-Project"] = self.project_id
         payload: dict[str, Any] = {
             "model": self.model,
             "input": [
