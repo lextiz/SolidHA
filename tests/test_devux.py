@@ -47,6 +47,7 @@ def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
     ana_record = {
         "incident": str(inc),
         "result": {
+            "summary": "summary",
             "root_cause": "rc",
             "impact": "system broken",
             "confidence": 0.5,
@@ -64,7 +65,7 @@ def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
         port = server.server_address[1]
         resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
         assert resp.status_code == 200
-        assert "system broken" in resp.text
+        assert "summary" in resp.text
         assert 'href="details/incidents_1.jsonl"' in resp.text
     finally:
         server.shutdown()
@@ -76,6 +77,7 @@ def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
     ana_record = {
         "incident": str(inc),
         "result": {
+            "summary": "summary",
             "root_cause": "rc",
             "impact": "system broken",
             "confidence": 0.5,
@@ -97,9 +99,12 @@ def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
             f"http://127.0.0.1:{port}/details/incidents_1.jsonl", timeout=5
         )
         assert resp.status_code == 200
+        assert "summary" in resp.text
         assert "system broken" in resp.text
         assert "Occurrences: 1" in resp.text
         assert "Candidate Actions" in resp.text
+        assert "why" in resp.text
+        assert "time_fired" in resp.text
         assert "trigger" in resp.text
     finally:
         server.shutdown()

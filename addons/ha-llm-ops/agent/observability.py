@@ -11,7 +11,10 @@ from pathlib import Path
 from typing import Any, TextIO
 
 import websockets
-from websockets.exceptions import ConnectionClosed, InvalidHandshake
+from websockets.exceptions import (
+    ConnectionClosed,
+    InvalidHandshake,
+)
 
 
 class AuthenticationError(RuntimeError):
