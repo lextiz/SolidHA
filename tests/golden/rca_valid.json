@@ -1,5 +1,4 @@
 {
-  "name": "integration X",
   "summary": "integration X misconfigured",
   "root_cause": "misconfigured integration X",
   "impact": "automation Y fails to run",

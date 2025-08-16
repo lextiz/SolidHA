@@ -185,7 +185,7 @@ def render_details(
     summary = ""
     if isinstance(analysis, dict):
         summary = str(analysis.get("summary", ""))
-        title = str(analysis.get("name") or summary or analysis.get("impact", name))
+        title = str(summary or analysis.get("impact", name))
     title = html.escape(title)
     parts = []
     if isinstance(analysis, dict):
@@ -282,8 +282,7 @@ def start_http_server(
                     inc_path = incident_dir / name
                     ana = analyses.get(name, {})
                     desc = str(
-                        ana.get("name")
-                        or ana.get("summary")
+                        ana.get("summary")
                         or ana.get("impact")
                         or name
                     )
