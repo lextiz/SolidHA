@@ -17,7 +17,8 @@ async def _serve(events: list[dict]) -> str:
         await ws.send(json.dumps({"type": "auth_required"}))
         await ws.recv()  # auth
         await ws.send(json.dumps({"type": "auth_ok"}))
-        await ws.recv()  # subscribe
+        await ws.recv()  # subscribe events
+        await ws.recv()  # supervisor subscribe
         for evt in events:
             await ws.send(json.dumps(evt))
         await asyncio.sleep(0.1)
@@ -132,3 +133,74 @@ def test_auth_failure_includes_details(tmp_path: Path) -> None:
             await server.wait_closed()
 
     asyncio.run(run_test())
+
+
+def test_observe_logs_failing_automation_and_script(tmp_path: Path) -> None:
+    events = [
+        _event(
+            "trace",
+            {
+                "domain": "automation",
+                "result": {"sequence": [{"result": {"success": False}}]},
+            },
+        ),
+        _event(
+            "trace",
+            {
+                "domain": "script",
+                "result": {"sequence": [{"result": {"error": "boom"}}]},
+            },
+        ),
+    ]
+
+    async def run_test() -> None:
+        server, url = await _serve(events)
+        try:
+            await asyncio.wait_for(
+                observe(url, token="t", incident_dir=tmp_path, limit=2),
+                timeout=3,
+            )
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    asyncio.run(run_test())
+
+    lines = []
+    for file in tmp_path.glob("incidents_*.jsonl"):
+        lines.extend(json.loads(line) for line in file.read_text().splitlines())
+
+    assert len(lines) == 2
+    assert all(line["event_type"] == "trace" for line in lines)
+
+
+def test_observe_logs_addon_error(tmp_path: Path) -> None:
+    events = [
+        _event(
+            "supervisor_event",
+            {
+                "event": "addon",
+                "data": {"level": "ERROR", "message": "addon crashed"},
+            },
+        ),
+    ]
+
+    async def run_test() -> None:
+        server, url = await _serve(events)
+        try:
+            await asyncio.wait_for(
+                observe(url, token="t", incident_dir=tmp_path, limit=1),
+                timeout=3,
+            )
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    asyncio.run(run_test())
+
+    lines = []
+    for file in tmp_path.glob("incidents_*.jsonl"):
+        lines.extend(json.loads(line) for line in file.read_text().splitlines())
+
+    assert len(lines) == 1
+    assert lines[0]["event_type"] == "supervisor_event"

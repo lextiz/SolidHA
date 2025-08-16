@@ -28,12 +28,12 @@ Home Assistant is powerful, but complex stacks (integrations, add-ons, flaky dev
 
 1. Autofix HA instabilities and have error-free logs
   1. M0 – Read-only Observer
-  2. M1 – Analysis-Only Agent
-  3. M2 – Guarded Executor
+  1. M1 – Analysis-Only Agent
+  1. M2 – Guarded Executor
     - Allow‑listed actions (reload automations, restart integrations, reauth flow triggers, backups, core restart last-resort). Dry-run → approval → execute → verify.
-  4. M3 – Policies & Scenario Tests
+  1. M3 – Policies & Scenario Tests
     - Policy file (what the agent may touch), quiet hours, mandatory verification tests, scenario suite in CI.
-2. Ability to create and edit automations and other configurations according to user prompt, all safe-guards and automatic validations above apply
+1. Ability to create and edit automations and other configurations according to user prompt, all safe-guards and automatic validations above apply
 
 ----------
 
@@ -71,9 +71,9 @@ Home Assistant is powerful, but complex stacks (integrations, add-ons, flaky dev
 
 > **Prereqs:** Docker, Git, and (for later milestones) a Home Assistant **Supervisor** environment for e2e tests.
 1. **Clone**: `git clone https://github.com/<you>/ha-llm-ops && cd ha-llm-ops`
-2. **Bootstrap**: `make bootstrap` (to be added in M0.0; installs pre-commit, sets up venv, etc.)
-3. **Run unit tests**: `make test`
-4. **Build add-on (local)**: `docker build -t ha-llm-ops:addon ./addons/ha-llm-ops`
+1. **Bootstrap**: `make bootstrap` (to be added in M0.0; installs pre-commit, sets up venv, etc.)
+1. **Run unit tests**: `make test`
+1. **Build add-on (local)**: `docker build -t ha-llm-ops:addon ./addons/ha-llm-ops`
 
 ----------
 

@@ -6,6 +6,7 @@ import asyncio
 import inspect
 import json
 import logging
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
@@ -44,6 +45,24 @@ class IncidentLogger:
             self._file = self._open_file()
         self._file.write(line + "\n")
         self._file.flush()
+
+
+def _contains_failure(obj: Any) -> bool:
+    """Recursively detect failure markers in ``obj``.
+
+    Home Assistant trace events for automations and scripts can nest results
+    deeply. A failure may appear anywhere in the structure via an ``error``
+    field or a ``success`` flag set to ``False``. This helper walks the object
+    to find any such markers.
+    """
+
+    if isinstance(obj, dict):
+        if obj.get("error") or obj.get("success") is False:
+            return True
+        return any(_contains_failure(v) for v in obj.values())
+    if isinstance(obj, Iterable) and not isinstance(obj, (str | bytes)):
+        return any(_contains_failure(v) for v in obj)
+    return False
 
 
 async def _authenticate(ws: Any, token: str) -> None:
@@ -96,6 +115,7 @@ async def observe(
             async with websockets.connect(url, **kwargs) as ws:
                 await _authenticate(ws, token)
                 await ws.send(json.dumps({"id": 1, "type": "subscribe_events"}))
+                await ws.send(json.dumps({"type": "supervisor/subscribe"}))
                 async for message in ws:
                     data = json.loads(message)
                     if data.get("type") != "event":
@@ -113,11 +133,7 @@ async def observe(
                         elif isinstance(level, str):
                             should_log = level.upper() in {"ERROR", "CRITICAL"}
                     elif etype == "trace":
-                        result = edata.get("result")
-                        if isinstance(result, dict):
-                            if result.get("success") is False or result.get("error"):
-                                should_log = True
-                        elif edata.get("error"):
+                        if _contains_failure(edata):
                             should_log = True
                     elif etype == "state_changed":
                         new_state = edata.get("new_state") or {}
@@ -126,6 +142,14 @@ async def observe(
                             and new_state.get("state") == "unavailable"
                         ):
                             should_log = True
+                    elif etype == "supervisor_event":
+                        if edata.get("event") == "addon":
+                            log = edata.get("data", {})
+                            level = log.get("level")
+                            if isinstance(level, int):
+                                should_log = level >= 40
+                            elif isinstance(level, str):
+                                should_log = level.upper() in {"ERROR", "CRITICAL"}
 
                     if not should_log:
                         continue
