@@ -45,4 +45,4 @@ pythonpath = ["."]
 packages = ["agent"]
 
 [tool.setuptools.package-data]
-"agent" = ["templates/*.html"]
+"agent" = []
