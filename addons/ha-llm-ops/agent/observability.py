@@ -119,6 +119,7 @@ async def observe(
                             if result.get("success") is False or result.get("error"):
                                 should_log = True
                         elif edata.get("error"):
+                            should_log = True
                     elif etype == "state_changed":
                         new_state = edata.get("new_state") or {}
                         if (
