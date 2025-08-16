@@ -1,6 +1,8 @@
 # Home Assistant Add-On: Autofix problems with AI
 
-**This alpha version is not stable or reliable it is in active development, use on your own risk. If you have to sell your house to fund your OpenAI account I will accept no claims**
+## Disclaimer
+
+This alpha version is not stable or reliable; it is in active development. Use at your own risk. If you have to sell your house to fund your OpenAI account I will accept no claims.
 
 [![CI](https://github.com/lextiz/SolidHA/actions/workflows/ci.yml/badge.svg)](https://github.com/lextiz/SolidHA/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/lextiz/SolidHA/branch/main/graph/badge.svg)](https://codecov.io/gh/lextiz/SolidHA)
@@ -27,13 +29,13 @@ Home Assistant is powerful, but complex stacks (integrations, add-ons, flaky dev
 ## Roadmap
 
 1. Autofix HA instabilities and have error-free logs
-  1. M0 – Read-only Observer
-  1. M1 – Analysis-Only Agent
-  1. M2 – Guarded Executor
-    - Allow‑listed actions (reload automations, restart integrations, reauth flow triggers, backups, core restart last-resort). Dry-run → approval → execute → verify.
-  1. M3 – Policies & Scenario Tests
-    - Policy file (what the agent may touch), quiet hours, mandatory verification tests, scenario suite in CI.
-1. Ability to create and edit automations and other configurations according to user prompt, all safe-guards and automatic validations above apply
+    1. M0 – Read-only Observer
+    2. M1 – Analysis-Only Agent
+    3. M2 – Guarded Executor
+        - Allow‑listed actions (reload automations, restart integrations, reauth flow triggers, backups, core restart last-resort). Dry-run → approval → execute → verify.
+    4. M3 – Policies & Scenario Tests
+        - Policy file (what the agent may touch), quiet hours, mandatory verification tests, scenario suite in CI.
+1. Ability to create and edit automations and other configurations according to user prompt, all safeguards and automatic validations above apply
 
 ----------
 
@@ -70,6 +72,7 @@ Home Assistant is powerful, but complex stacks (integrations, add-ons, flaky dev
 ## Getting Started (Developer)
 
 > **Prereqs:** Docker, Git, and (for later milestones) a Home Assistant **Supervisor** environment for e2e tests.
+
 1. **Clone**: `git clone https://github.com/<you>/ha-llm-ops && cd ha-llm-ops`
 1. **Bootstrap**: `make bootstrap` (to be added in M0.0; installs pre-commit, sets up venv, etc.)
 1. **Run unit tests**: `make test`
@@ -94,11 +97,11 @@ Home Assistant is powerful, but complex stacks (integrations, add-ons, flaky dev
 
 Below are ready-to-run bite-sized tasks for the autonomous agent. Each bullet is intended to be a single small PR.
 
-# M2 — Guarded Executor
+### M2 — Guarded Executor
 
 **Objective:** extend the analysis-only agent with the ability to apply **safe, allow-listed remediations** inside HA. All actions are gated by policy, backups, and dry-run verification.
 
----
+----------
 
 ## Scope
 
@@ -110,7 +113,7 @@ Below are ready-to-run bite-sized tasks for the autonomous agent. Each bullet is
 - ❌ No new analysis features (analysis pipeline is stable from M1).
 - ❌ No telemetry (still opt-in deferred).
 
----
+----------
 
 ## Definition of Done (M2)
 
@@ -121,76 +124,88 @@ Below are ready-to-run bite-sized tasks for the autonomous agent. Each bullet is
 - Coverage threshold ≥ 85% for executor modules.
 - UI shows pending proposals, requires explicit approval.
 
----
+----------
 
 ## Detailed Task Breakdown (Bite-Sized for Codex)
 
 ### M2.0 – Policy & contracts
 
 1. **Task:** Add `agent/executor/policy.py`.
-   - Define `Policy` pydantic model: `action_id`, `allowed`, `conditions`, `cooldown_s`.
-   - Load from `policy.yaml` in add-on config dir.
-   - Unit tests with valid/invalid policies.
+
+    - Define `Policy` pydantic model: `action_id`, `allowed`, `conditions`, `cooldown_s`.
+    - Load from `policy.yaml` in add-on config dir.
+    - Unit tests with valid/invalid policies.
 
 2. **Task:** Add `agent/executor/contracts.py`.
-   - Define `ActionProposal`, `ActionExecution`, `ExecutionResult`.
-   - Ensure JSON schema export (similar to RCA).
-   - Unit tests: schema validation, sample roundtrips.
+
+    - Define `ActionProposal`, `ActionExecution`, `ExecutionResult`.
+    - Ensure JSON schema export (similar to RCA).
+    - Unit tests: schema validation, sample roundtrips.
 
 ### M2.1 – Executor framework
 
-3. **Task:** Create `agent/executor/base.py`.
-   - Abstract `Executor` class with `dry_run()` and `apply()` methods.
+1. **Task:** Create `agent/executor/base.py`.
 
-4. **Task:** Implement `agent/executor/supervisor.py`.
-   - Use Supervisor API to call safe actions (e.g. restart add-on, reload integration).
-   - Respect `Policy`.
-   - Unit tests with mocked Supervisor HTTP.
+    - Abstract `Executor` class with `dry_run()` and `apply()` methods.
 
-5. **Task:** Add `agent/executor/manager.py`.
-   - Map `ActionProposal` → correct executor.
-   - Enforce policy lookup + cooldown.
-   - Unit tests with fake executors and policies.
+2. **Task:** Implement `agent/executor/supervisor.py`.
+
+    - Use Supervisor API to call safe actions (e.g. restart add-on, reload integration).
+    - Respect `Policy`.
+    - Unit tests with mocked Supervisor HTTP.
+
+3. **Task:** Add `agent/executor/manager.py`.
+
+    - Map `ActionProposal` → correct executor.
+    - Enforce policy lookup + cooldown.
+    - Unit tests with fake executors and policies.
 
 ### M2.2 – Backup & rollback
 
-6. **Task:** Add `agent/executor/backup.py`.
-   - Trigger Supervisor snapshot API before execution.
-   - Store snapshot ID in `ExecutionResult`.
-   - Unit tests: simulate backup success/failure.
+1. **Task:** Add `agent/executor/backup.py`.
 
-7. **Task:** Add rollback support in `manager.py`.
-   - If execution fails, trigger snapshot restore.
-   - Unit tests: forced failure path.
+    - Trigger Supervisor snapshot API before execution.
+    - Store snapshot ID in `ExecutionResult`.
+    - Unit tests: simulate backup success/failure.
+
+2. **Task:** Add rollback support in `manager.py`.
+
+    - If execution fails, trigger snapshot restore.
+    - Unit tests: forced failure path.
 
 ### M2.3 – HTTP endpoints
 
-8. **Task:** Extend `agent/devux.py`.
-   - Add POST `/actions/propose` → accept `ActionProposal`, run policy check, enqueue.
-   - Add GET `/actions/pending` → list proposals awaiting approval.
-   - Add POST `/actions/approve` → trigger execution with backup.
-   - Unit tests: API contract, error cases.
+1. **Task:** Extend `agent/devux.py`.
+
+    - Add POST `/actions/propose` → accept `ActionProposal`, run policy check, enqueue.
+    - Add GET `/actions/pending` → list proposals awaiting approval.
+    - Add POST `/actions/approve` → trigger execution with backup.
+    - Unit tests: API contract, error cases.
 
 ### M2.4 – Integration & end-to-end
 
-9. **Task:** Add E2E test with mock Supervisor API.
-   - Proposal created, approved, executed → success path validated.
+1. **Task:** Add E2E test with mock Supervisor API.
 
-10. **Task:** Add Docker-based HA integration test.
-   - Simulate unstable integration; LLM proposes “restart integration”; executor applies; verify status healthy.
+    - Proposal created, approved, executed → success path validated.
+
+2. **Task:** Add Docker-based HA integration test.
+
+    - Simulate unstable integration; LLM proposes “restart integration”; executor applies; verify status healthy.
 
 ### M2.5 – UI & docs
 
-11. **Task:** Extend Lovelace card example.
-   - Show pending actions with approve button.
-   - Display execution result + rollback info.
+1. **Task:** Extend Lovelace card example.
 
-12. **Task:** Update docs.
-   - Policy file format.
-   - Backup/rollback mechanism.
-   - Example flows.
+    - Show pending actions with approve button.
+    - Display execution result + rollback info.
 
----
+2. **Task:** Update docs.
+
+    - Policy file format.
+    - Backup/rollback mechanism.
+    - Example flows.
+
+----------
 
 ## Non-Goals for M2
 
