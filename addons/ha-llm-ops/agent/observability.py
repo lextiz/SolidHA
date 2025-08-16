@@ -6,7 +6,6 @@ import asyncio
 import inspect
 import json
 import logging
-from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
