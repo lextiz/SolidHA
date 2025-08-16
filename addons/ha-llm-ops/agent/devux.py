@@ -154,14 +154,12 @@ def _load_analyses(directory: Path) -> dict[str, dict[str, object]]:
             inc = record.get("incident")
             if not isinstance(inc, str):
                 continue
-            result = record.get("result")
             event = record.get("event")
-            combined: dict[str, object] = {}
-            if isinstance(result, dict):
-                combined.update(result)
-            for key, value in record.items():
-                if key not in {"incident", "event", "result"}:
-                    combined.setdefault(key, value)
+            combined = {
+                key: value
+                for key, value in record.items()
+                if key not in {"incident", "event"}
+            }
             if event is not None:
                 combined["trigger_event"] = event
             mapping[Path(inc).name] = combined

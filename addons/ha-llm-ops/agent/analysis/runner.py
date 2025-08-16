@@ -116,7 +116,7 @@ class AnalysisRunner:
         trigger = bundle.events[-1] if bundle.events else None
         record = {
             "incident": str(incident.path),
-            "result": result.model_dump(),
+            **result.model_dump(),
             "event": trigger,
         }
         self.logger.write(record)

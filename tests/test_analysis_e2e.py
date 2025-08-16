@@ -37,7 +37,9 @@ def test_end_to_end_analysis(tmp_path: Path) -> None:
         files = list(out_dir.glob("analyses_*.jsonl"))
         assert len(files) == 1
         record = json.loads(files[0].read_text().splitlines()[0])
-        RcaOutput.model_validate(record["result"])
+        RcaOutput.model_validate(
+            {k: v for k, v in record.items() if k not in {"incident", "event"}}
+        )
         port = server.server_address[1]
         resp = requests.get(f"http://127.0.0.1:{port}/analyses", timeout=5)
         assert resp.status_code == 200
