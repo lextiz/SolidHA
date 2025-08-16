@@ -82,6 +82,7 @@ class AnalysisRunner:
         self._next_run = 0.0
         self._backoff = 1.0
         self._processed: set[Path] = set()
+        self._attempts: dict[Path, int] = {}
         self.logger = AnalysisLogger(analysis_dir, max_bytes=max_bytes)
         if patterns_path is None:
             patterns_path = analysis_dir / "recurring.json"
@@ -127,19 +128,29 @@ class AnalysisRunner:
         LOGGER.debug("scanning incidents in %s", self.incident_dir)
         incidents = list_incidents(self.incident_dir)
         LOGGER.debug("found %d incident(s)", len(incidents))
-        try:
-            for inc in incidents:
-                if inc.path in self._processed:
-                    LOGGER.debug("skipping already processed incident %s", inc.path)
-                    continue
-                LOGGER.debug("processing incident %s", inc.path)
-                self._analyze(inc)
+        for inc in incidents:
+            if inc.path in self._processed:
+                LOGGER.debug("skipping already processed incident %s", inc.path)
+                continue
+            attempts = self._attempts.get(inc.path, 0)
+            if attempts >= 5:
+                LOGGER.warning(
+                    "analysis for %s failed %d time(s); giving up", inc.path, attempts
+                )
                 self._processed.add(inc.path)
-        except Exception:  # pragma: no cover - defensive
-            LOGGER.exception("analysis failed")
-            self._next_run = now + self._backoff
-            self._backoff = min(self._backoff * 2, 60)
-            return
+                self._attempts.pop(inc.path, None)
+                continue
+            LOGGER.debug("processing incident %s", inc.path)
+            try:
+                self._analyze(inc)
+            except Exception:  # pragma: no cover - defensive
+                LOGGER.exception("analysis failed for %s", inc.path)
+                self._attempts[inc.path] = attempts + 1
+                self._next_run = now + self._backoff
+                self._backoff = min(self._backoff * 2, 60)
+                return
+            self._processed.add(inc.path)
+            self._attempts.pop(inc.path, None)
         self._next_run = now + self.rate_seconds
         self._backoff = 1.0
 
