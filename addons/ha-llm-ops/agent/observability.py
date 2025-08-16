@@ -30,21 +30,17 @@ class IncidentLogger:
         self.max_bytes = max_bytes
         self.directory.mkdir(parents=True, exist_ok=True)
         self._counter = 0
-        self._file = self._open_file()
 
     def _open_file(self) -> TextIO:
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         path = self.directory / f"incidents_{timestamp}_{self._counter}.jsonl"
         self._counter += 1
-        return path.open("a", encoding="utf-8")
+        return path.open("w", encoding="utf-8")
 
     def write(self, event: dict[str, Any]) -> None:
         line = json.dumps(event, sort_keys=True)
-        if self._file.tell() + len(line) + 1 > self.max_bytes:
-            self._file.close()
-            self._file = self._open_file()
-        self._file.write(line + "\n")
-        self._file.flush()
+        with self._open_file() as file:
+            file.write(line + "\n")
 
 
 def _contains_failure(obj: Any) -> bool:

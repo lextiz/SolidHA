@@ -71,6 +71,9 @@ def test_runner_logs_new_and_known_incidents(
 
     with caplog.at_level(logging.INFO):
         runner.run_once()
+    assert "event selected for analysis" in caplog.text
+    assert "triggering llm analysis" in caplog.text
+    assert "llm analysis succeeded" in caplog.text
     assert "new incident analyzed" in caplog.text
 
     _incident(
@@ -82,4 +85,8 @@ def test_runner_logs_new_and_known_incidents(
     caplog.clear()
     with caplog.at_level(logging.INFO):
         runner.run_once()
+    assert (
+        "no events selected for analysis because they matched an existing pattern"
+        in caplog.text
+    )
     assert "known incident occurred again" in caplog.text

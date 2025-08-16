@@ -5,11 +5,24 @@ from pathlib import Path
 import pytest
 import websockets
 
-from agent.observability import AuthenticationError, _authenticate, observe
+from agent.observability import (
+    AuthenticationError,
+    IncidentLogger,
+    _authenticate,
+    observe,
+)
 
 
 def _event(event_type: str, data: dict) -> dict:
     return {"type": "event", "event": {"event_type": event_type, "data": data}}
+
+
+def test_incident_logger_rotates_per_event(tmp_path: Path) -> None:
+    logger = IncidentLogger(tmp_path, max_bytes=1000)
+    logger.write({"event_type": "a"})
+    logger.write({"event_type": "b"})
+    files = sorted(tmp_path.glob("incidents_*.jsonl"))
+    assert len(files) == 2
 
 
 async def _serve(events: list[dict]) -> str:

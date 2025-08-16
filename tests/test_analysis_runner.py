@@ -1,5 +1,7 @@
 import asyncio
 import json
+import logging
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -7,6 +9,7 @@ import pytest
 from agent.analysis.llm.mock import MockLLM
 from agent.analysis.llm.openai import OpenAI
 from agent.analysis.runner import AnalysisRunner, create_llm
+from agent.analysis.types import IncidentRef
 
 
 def _incident(path: Path, ts: str) -> None:
@@ -191,3 +194,28 @@ def test_runner_retries_failed_analysis(tmp_path: Path) -> None:
     runner.run_once()
     assert llm.calls == 5
     assert (inc_dir / "incidents_1.jsonl") in runner._processed
+
+
+def test_runner_logs_no_events(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    path = tmp_path / "incidents_1.jsonl"
+    path.write_text("", encoding="utf-8")
+
+    runner = AnalysisRunner(
+        tmp_path,
+        tmp_path,
+        MockLLM(),
+        rate_seconds=0,
+        max_lines=5,
+        max_bytes=1000,
+    )
+
+    inc = IncidentRef(path, datetime.now(UTC), datetime.now(UTC))
+
+    with caplog.at_level(logging.INFO):
+        runner._analyze(inc)  # noqa: SLF001
+    assert (
+        "no events selected for analysis because none were filtered out"
+        in caplog.text
+    )

@@ -96,10 +96,19 @@ class AnalysisRunner:
             incident.path,
             len(bundle.events),
         )
+        if not bundle.events:
+            LOGGER.info(
+                "no events selected for analysis because none were filtered out"
+            )
+            return
         context_text = json.dumps(bundle.events, sort_keys=True)
         matched = self.patterns.match(context_text)
         if matched:
             self.patterns.update(matched, incident.end)
+            LOGGER.info(
+                "no events selected for analysis because "
+                "they matched an existing pattern"
+            )
             LOGGER.info(
                 "known incident occurred again: %s (pattern: %s, occurrences: %d)",
                 incident.path,
@@ -107,9 +116,11 @@ class AnalysisRunner:
                 matched.occurrences,
             )
             return
+        LOGGER.info("event selected for analysis")
         prompt = build_prompt(bundle)
-        LOGGER.debug("sending prompt to LLM for %s", incident.path)
+        LOGGER.info("triggering llm analysis")
         raw = self.llm.generate(prompt.text, timeout=360)
+        LOGGER.info("llm analysis succeeded")
         LOGGER.debug("LLM response for %s: %s", incident.path, raw)
         result = parse_result(raw)
         LOGGER.debug("parsed LLM result for %s: %s", incident.path, result)
