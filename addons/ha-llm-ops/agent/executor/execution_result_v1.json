@@ -1,0 +1,47 @@
+{
+  "description": "Outcome of executing an action.",
+  "properties": {
+    "action_id": {
+      "description": "Identifier of the executed action",
+      "title": "Action Id",
+      "type": "string"
+    },
+    "success": {
+      "description": "Whether the action succeeded",
+      "title": "Success",
+      "type": "boolean"
+    },
+    "detail": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Additional execution details",
+      "title": "Detail"
+    },
+    "snapshot_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Snapshot ID used for backup before execution",
+      "title": "Snapshot Id"
+    }
+  },
+  "required": [
+    "action_id",
+    "success"
+  ],
+  "title": "ExecutionResult",
+  "type": "object"
+}

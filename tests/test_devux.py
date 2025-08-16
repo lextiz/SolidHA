@@ -67,6 +67,7 @@ def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
         assert resp.status_code == 200
         assert "summary" in resp.text
         assert 'href="details/incidents_1.jsonl"' in resp.text
+        assert "class='occurrences'>1<" in resp.text
     finally:
         server.shutdown()
 
@@ -107,6 +108,29 @@ def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
         assert "time_fired" in resp.text
         assert "trigger" in resp.text
         assert "Delete" in resp.text
+    finally:
+        server.shutdown()
+
+
+def test_http_root_sorted_by_occurrences(
+    devux: ModuleType, tmp_path: Path
+) -> None:
+    inc1 = tmp_path / "incidents_1.jsonl"
+    inc1.write_text("{}\n{}\n", encoding="utf-8")
+    inc2 = tmp_path / "incidents_2.jsonl"
+    inc2.write_text("{}\n", encoding="utf-8")
+    server = devux.start_http_server(tmp_path, host="127.0.0.1", port=0)
+    try:
+        time.sleep(0.1)
+        port = server.server_address[1]
+        resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
+        assert resp.status_code == 200
+        text = resp.text
+        first = text.find("incidents_1.jsonl")
+        second = text.find("incidents_2.jsonl")
+        assert first != -1 and second != -1 and first < second
+        assert "class='occurrences'>2<" in text
+        assert "class='occurrences'>1<" in text
     finally:
         server.shutdown()
 
