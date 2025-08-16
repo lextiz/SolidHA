@@ -128,10 +128,12 @@ def render_index(entries: list[tuple[str, int, str, str]]) -> bytes:
     """Render a simple HA-style page for incidents with details links."""
     items = "\n".join(
         (
-            f"<li class='item'><span class='name'>{html.escape(desc)}</span>"
+            "<li class='item'>"
+            f"<a class='name' href=\"details/{html.escape(name)}\">"
+            f"{html.escape(desc)}</a>"
             f"<span class='occurrences'>{occ}</span>"
             f"<span class='timestamp'>{html.escape(last)}</span>"
-            f"<a href=\"details/{html.escape(name)}\">View</a></li>"
+            "</li>"
         )
         for desc, occ, last, name in entries
     )

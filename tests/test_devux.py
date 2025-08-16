@@ -66,7 +66,9 @@ def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
         resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
         assert resp.status_code == 200
         assert "summary" in resp.text
-        assert 'href="details/incidents_1.jsonl"' in resp.text
+        assert (
+            "<a class='name' href=\"details/incidents_1.jsonl\">" in resp.text
+        )
         assert "class='occurrences'>1<" in resp.text
     finally:
         server.shutdown()
@@ -129,6 +131,7 @@ def test_http_root_sorted_by_occurrences(
         first = text.find("incidents_1.jsonl")
         second = text.find("incidents_2.jsonl")
         assert first != -1 and second != -1 and first < second
+        assert "<a class='name' href=\"details/incidents_1.jsonl\">" in text
         assert "class='occurrences'>2<" in text
         assert "class='occurrences'>1<" in text
     finally:
