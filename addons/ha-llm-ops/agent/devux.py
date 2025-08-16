@@ -11,6 +11,8 @@ from pathlib import Path
 from string import Template
 from urllib.parse import unquote
 
+IGNORED_FILE = "ignored.json"
+
 
 def list_incidents(directory: Path) -> list[str]:
     """Return sorted incident bundle file names."""
@@ -95,6 +97,25 @@ def _count_occurrences(path: Path) -> int:
         return 0
 
 
+def _load_ignored(directory: Path) -> set[str]:
+    """Return set of ignored incident file names."""
+
+    try:
+        return set(
+            json.loads((directory / IGNORED_FILE).read_text(encoding="utf-8"))
+        )
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+
+def _save_ignored(directory: Path, names: set[str]) -> None:
+    """Persist ignored incident ``names`` to disk."""
+
+    (directory / IGNORED_FILE).write_text(
+        json.dumps(sorted(names)), encoding="utf-8"
+    )
+
+
 def _load_analyses(directory: Path) -> dict[str, dict[str, object]]:
     """Return mapping of incident file name to latest analysis result."""
     mapping: dict[str, dict[str, object]] = {}
@@ -124,16 +145,22 @@ def _load_analyses(directory: Path) -> dict[str, dict[str, object]]:
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
 
-def render_index(entries: list[tuple[str, int, str, str]]) -> bytes:
+def render_index(entries: list[tuple[str, int, str, str, bool]]) -> bytes:
     """Render a simple HA-style page for incidents with details links."""
     items = "\n".join(
         (
-            f"<li class='item'><span class='name'>{html.escape(desc)}</span>"
-            f"<span class='occurrences'>{occ}</span>"
-            f"<span class='timestamp'>{html.escape(last)}</span>"
-            f"<a href=\"details/{html.escape(name)}\">View</a></li>"
+            "<li class='item{}'><span class='name'>{}</span>"
+            "<span class='occurrences'>{}</span>"
+            "<span class='timestamp'>{}</span>"
+            "<a href=\"details/{}\">View</a></li>".format(
+                " ignored" if ignored else "",
+                html.escape(desc),
+                occ,
+                html.escape(last),
+                html.escape(name),
+            )
         )
-        for desc, occ, last, name in entries
+        for desc, occ, last, name, ignored in entries
     )
     template = (TEMPLATE_DIR / "index.html").read_text(encoding="utf-8")
     body = Template(template).safe_substitute(items=items)
@@ -144,6 +171,7 @@ def render_details(
     name: str,
     incident_path: Path,
     analysis: dict[str, object] | None,
+    ignored: bool = False,
 ) -> bytes:
     """Render an incident details page including its analysis if available."""
     incident_lines = [
@@ -157,7 +185,7 @@ def render_details(
     summary = ""
     if isinstance(analysis, dict):
         summary = str(analysis.get("summary", ""))
-        title = summary or str(analysis.get("impact", name))
+        title = str(summary or analysis.get("impact", name))
     title = html.escape(title)
     parts = []
     if isinstance(analysis, dict):
@@ -227,6 +255,7 @@ def render_details(
         incident=incident_html,
         analysis=analysis_html,
         name=html.escape(name),
+        ignore_action="Unignore" if ignored else "Ignore",
     )
     return body.encode("utf-8")
 
@@ -244,20 +273,35 @@ def start_http_server(
         def do_GET(self) -> None:  # noqa: D401 - HTTP handler
             path = unquote(self.path.rstrip("/"))
             if path == "" or path == "/":
-                incidents: list[tuple[str, int, str, str]] = []
                 analyses = (
                     _load_analyses(analysis_dir) if analysis_dir is not None else {}
                 )
+                ignored = _load_ignored(incident_dir)
+                incidents: list[tuple[str, int, str, str, bool]] = []
                 for name in list_incidents(incident_dir):
                     inc_path = incident_dir / name
                     ana = analyses.get(name, {})
-                    desc = str(ana.get("summary") or ana.get("impact") or name)
-                    occurrences = _count_occurrences(inc_path)
-                    incidents.append(
-                        (desc, occurrences, _last_occurrence(inc_path), name)
+                    desc = str(
+                        ana.get("summary")
+                        or ana.get("impact")
+                        or name
                     )
-                incidents.sort(key=lambda x: x[1], reverse=True)
-                body = render_index(incidents)
+                    occurrences = _count_occurrences(inc_path)
+                    is_ignored = name in ignored
+                    incidents.append(
+                        (
+                            desc,
+                            occurrences,
+                            _last_occurrence(inc_path),
+                            name,
+                            is_ignored,
+                        )
+                    )
+                active = [i for i in incidents if not i[4]]
+                ignored_list = [i for i in incidents if i[4]]
+                active.sort(key=lambda x: x[1], reverse=True)
+                ignored_list.sort(key=lambda x: x[3])
+                body = render_index(active + ignored_list)
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
             elif path.startswith("/details/"):
@@ -270,7 +314,10 @@ def start_http_server(
                 analyses = (
                     _load_analyses(analysis_dir) if analysis_dir is not None else {}
                 )
-                body = render_details(name, file_path, analyses.get(name))
+                ignored = _load_ignored(incident_dir)
+                body = render_details(
+                    name, file_path, analyses.get(name), name in ignored
+                )
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
             elif path == "/incidents":
@@ -301,6 +348,17 @@ def start_http_server(
                 body = file_path.read_bytes()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
+            elif path.startswith("/ignore/"):
+                name = path.split("/", 2)[2]
+                ignored = _load_ignored(incident_dir)
+                if name in ignored:
+                    ignored.remove(name)
+                else:
+                    ignored.add(name)
+                _save_ignored(incident_dir, ignored)
+                self.send_response(303)
+                self.send_header("Location", "/")
+                body = b""
             elif path.startswith("/delete/"):
                 name = path.split("/", 2)[2]
                 delete_incident(incident_dir, name, analysis_dir)

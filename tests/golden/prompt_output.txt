@@ -65,6 +65,7 @@ Schema:
     },
     "summary": {
       "description": "Short summary of the incident",
+      "maxLength": 200,
       "title": "Summary",
       "type": "string"
     },
