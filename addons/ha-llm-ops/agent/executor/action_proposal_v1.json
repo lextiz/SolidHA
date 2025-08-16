@@ -1,0 +1,21 @@
+{
+  "description": "LLM-provided proposal for an action.",
+  "properties": {
+    "action_id": {
+      "description": "Identifier of the proposed action",
+      "title": "Action Id",
+      "type": "string"
+    },
+    "params": {
+      "additionalProperties": true,
+      "description": "Parameters for the action",
+      "title": "Params",
+      "type": "object"
+    }
+  },
+  "required": [
+    "action_id"
+  ],
+  "title": "ActionProposal",
+  "type": "object"
+}
