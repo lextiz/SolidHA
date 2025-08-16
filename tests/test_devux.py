@@ -108,6 +108,8 @@ def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
         assert "time_fired" in resp.text
         assert "trigger" in resp.text
         assert "Delete" in resp.text
+        assert "Ignore" in resp.text
+        assert resp.text.index("Root Cause") < resp.text.index("time_fired")
     finally:
         server.shutdown()
 
@@ -262,5 +264,26 @@ def test_http_delete_incident(devux: ModuleType, tmp_path: Path) -> None:
         assert resp.status_code == 303
         assert not inc.exists()
         assert not list(tmp_path.glob("analyses_*.jsonl"))
+    finally:
+        server.shutdown()
+
+
+def test_http_ignore_toggle(devux: ModuleType, tmp_path: Path) -> None:
+    inc = tmp_path / "incidents_1.jsonl"
+    inc.write_text("{}\n", encoding="utf-8")
+    server = devux.start_http_server(tmp_path, host="127.0.0.1", port=0)
+    try:
+        time.sleep(0.1)
+        port = server.server_address[1]
+        url = f"http://127.0.0.1:{port}/ignore/incidents_1.jsonl"
+        resp = requests.get(url, timeout=5, allow_redirects=False)
+        assert resp.status_code == 303
+        ignored_path = tmp_path / "ignored.json"
+        assert json.loads(ignored_path.read_text()) == ["incidents_1.jsonl"]
+        resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
+        assert "item ignored" in resp.text
+        resp = requests.get(url, timeout=5, allow_redirects=False)
+        assert resp.status_code == 303
+        assert json.loads(ignored_path.read_text()) == []
     finally:
         server.shutdown()
