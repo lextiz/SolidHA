@@ -99,8 +99,13 @@ class AnalysisRunner:
         context_text = json.dumps(bundle.events, sort_keys=True)
         matched = self.patterns.match(context_text)
         if matched:
-            LOGGER.info("incident %s matched pattern %s", incident.path, matched)
             self.patterns.update(matched, incident.end)
+            LOGGER.info(
+                "known incident occurred again: %s (pattern: %s, occurrences: %d)",
+                incident.path,
+                matched.pattern,
+                matched.occurrences,
+            )
             return
         prompt = build_prompt(bundle)
         LOGGER.debug("sending prompt to LLM for %s", incident.path)
@@ -115,7 +120,7 @@ class AnalysisRunner:
             "event": trigger,
         }
         self.logger.write(record)
-        LOGGER.info("analysis recorded for %s", incident.path)
+        LOGGER.info("new incident analyzed: %s", incident.path)
         pattern = result.recurrence_pattern
         if validate_pattern(pattern):
             LOGGER.debug("adding recurrence pattern for %s: %s", incident.path, pattern)
