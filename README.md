@@ -222,112 +222,109 @@ ha-llm-ops/
 
 Below are ready-to-run bite-sized tasks for the autonomous agent. Each bullet is intended to be a single small PR.
 
-### M1.0 – Analysis skeleton & contracts
+# M2 — Guarded Executor
 
-1. **Task:** Create `agent/analysis/__init__.py` and `agent/analysis/types.py`.
+**Objective:** extend the analysis-only agent with the ability to apply **safe, allow-listed remediations** inside HA. All actions are gated by policy, backups, and dry-run verification.
 
-    - Define typed structures for: `IncidentRef`, `ContextBundle`, `Prompt`, `RcaOutput` (alias of `RcaResult`).
-    - Add unit tests validating simple constructors and type hints (mypy strict).
+---
 
-1. **Task:** Add `agent/analysis/storage.py`.
+## Scope
 
-    - Read incident files from `/data/incidents`.
-    - Map to `IncidentRef` (filename + time range).
-    - Unit tests with tmpdir fixtures (empty dir, multiple files, malformed line handling).
+- ✅ Define **policy file**: what actions are allowed, when, and under what conditions.
+- ✅ Add **executor framework**: guarded service calls via Supervisor/HA API.
+- ✅ Add **backup + verify + rollback** for every execution.
+- ✅ Expose new **endpoints** for action proposals and approvals.
+- ✅ Extend UI with action approval flow.
+- ❌ No new analysis features (analysis pipeline is stable from M1).
+- ❌ No telemetry (still opt-in deferred).
 
-1. **Task:** Add `agent/analysis/context.py`.
+---
 
-    - Build `ContextBundle` from recent events around an incident (last N lines) and deduplicate noisy repeats.
-    - Unit tests: verify dedupe and size limits.
+## Definition of Done (M2)
 
-### M1.1 – Prompt builder
+- All executor actions strictly validated against policy file.
+- Backups taken before every mutation; rollback path tested.
+- Dry-run simulation supported and exposed in HTTP API.
+- Integration tests show at least one remediation (e.g. restart an integration) working end-to-end in mock HA.
+- Coverage threshold ≥ 85% for executor modules.
+- UI shows pending proposals, requires explicit approval.
 
-1. **Task:** Add `agent/analysis/prompt_builder.py`.
+---
 
-    - Deterministic prompt from `ContextBundle` + repo/version info + guardrails.
-    - Export prompt as **pure text** plus a **JSON schema section** (copied from `RcaResult.model_json_schema()`).
+## Detailed Task Breakdown (Bite-Sized for Codex)
 
-1. **Task:** Golden tests for prompt builder.
+### M2.0 – Policy & contracts
 
-    - Create `tests/golden/prompt_input.json` and `tests/golden/prompt_output.txt`.
-    - Snapshot test ensuring prompt text matches exactly; add an allowlisted small “update snapshot” script.
+1. **Task:** Add `agent/executor/policy.py`.
+   - Define `Policy` pydantic model: `action_id`, `allowed`, `conditions`, `cooldown_s`.
+   - Load from `policy.yaml` in add-on config dir.
+   - Unit tests with valid/invalid policies.
 
-### M1.2 – LLM adapters (read-only)
+2. **Task:** Add `agent/executor/contracts.py`.
+   - Define `ActionProposal`, `ActionExecution`, `ExecutionResult`.
+   - Ensure JSON schema export (similar to RCA).
+   - Unit tests: schema validation, sample roundtrips.
 
-1. **Task:** Create `agent/analysis/llm/base.py`.
+### M2.1 – Executor framework
 
-    - Define `LLM` protocol: `generate(prompt: str, *, timeout: float) -> str`.
+3. **Task:** Create `agent/executor/base.py`.
+   - Abstract `Executor` class with `dry_run()` and `apply()` methods.
 
-1. **Task:** Add `agent/analysis/llm/mock.py`.
+4. **Task:** Implement `agent/executor/supervisor.py`.
+   - Use Supervisor API to call safe actions (e.g. restart add-on, reload integration).
+   - Respect `Policy`.
+   - Unit tests with mocked Supervisor HTTP.
 
-    - Deterministic stub returning a canned, valid `RcaResult` JSON for tests.
+5. **Task:** Add `agent/executor/manager.py`.
+   - Map `ActionProposal` → correct executor.
+   - Enforce policy lookup + cooldown.
+   - Unit tests with fake executors and policies.
 
-1. **Task:** Add `agent/analysis/llm/openai.py` (adapter only).
+### M2.2 – Backup & rollback
 
-    - Read `OPENAI_API_KEY` from env.
-    - Compose JSON-only system prompt: “Respond with **only** valid JSON per schema below; no prose.”
-    - Parse/return raw string (no model validation here).
-    - Unit tests: environment handling + timeouts (use mock HTTP).
+6. **Task:** Add `agent/executor/backup.py`.
+   - Trigger Supervisor snapshot API before execution.
+   - Store snapshot ID in `ExecutionResult`.
+   - Unit tests: simulate backup success/failure.
 
-1. **Task:** Add `agent/analysis/parse.py`.
+7. **Task:** Add rollback support in `manager.py`.
+   - If execution fails, trigger snapshot restore.
+   - Unit tests: forced failure path.
 
-    - Strict parsing: JSON load → pydantic `RcaResult`.
-    - Defensive errors surfaced with actionable messages.
-    - Unit tests with valid/invalid payloads.
+### M2.3 – HTTP endpoints
 
-### M1.3 – Analysis runner & endpoints
+8. **Task:** Extend `agent/devux.py`.
+   - Add POST `/actions/propose` → accept `ActionProposal`, run policy check, enqueue.
+   - Add GET `/actions/pending` → list proposals awaiting approval.
+   - Add POST `/actions/approve` → trigger execution with backup.
+   - Unit tests: API contract, error cases.
 
-1. **Task:** Add `agent/analysis/runner.py`.
+### M2.4 – Integration & end-to-end
 
-    - Scheduler: scan for new incident files; rate-limit; enqueue to analyze; backoff on failures.
-    - Pluggable LLM (`MOCK` default, `OPENAI` if env present).
-    - Persist analyses as JSONL in `/data/analyses/analyses_*.jsonl` (size-rotated).
-    - Unit tests: queueing, rate-limit, rotation.
+9. **Task:** Add E2E test with mock Supervisor API.
+   - Proposal created, approved, executed → success path validated.
 
-1. **Task:** Extend HTTP server in `agent/devux.py`.
+10. **Task:** Add Docker-based HA integration test.
+   - Simulate unstable integration; LLM proposes “restart integration”; executor applies; verify status healthy.
 
-    - Add GET `/analyses` → returns latest analyses (filenames or inline last N).
-    - Unit tests for handler (404, empty, non-empty).
+### M2.5 – UI & docs
 
-1. **Task:** Wire the runner in `addons/ha-llm-ops/agent/__main__.py`.
+11. **Task:** Extend Lovelace card example.
+   - Show pending actions with approve button.
+   - Display execution result + rollback info.
 
-    - Start analysis runner alongside observer and HTTP server.
-    - Config via env: `ANALYSIS_RATE_SECONDS`, `ANALYSIS_MAX_LINES`, `LLM_BACKEND`.
-    - Unit test: start/stop with mock LLM; verify runner called.
+12. **Task:** Update docs.
+   - Policy file format.
+   - Backup/rollback mechanism.
+   - Example flows.
 
-### M1.4 – End-to-end & integration
+---
 
-1. **Task:** Add E2E test with **mock LLM** (no network).
+## Non-Goals for M2
 
-    - Create a synthetic incident file; run runner once; assert a valid `RcaResult` stored; verify `/analyses` lists it.
-
-1. **Task:** Extend Docker-based HA integration test.
-
-    - After generating at least one incident, run the analysis once with mock LLM; assert a persisted analysis appears.
-
-1. **Task:** Coverage & CI
-
-    - Raise coverage threshold to 85% for analysis modules.
-    - Ensure CI skips real LLM tests unless `OPENAI_API_KEY` is set (matrix job optional).
-
-### M1.5 – Minimal UI
-
-1. **Task:** Add example Lovelace card YAML (docs/):
-
-    - Panel listing `/analyses` newest-first; clicking an item shows parsed `RcaResult`.
-
-1. **Task:** Documentation: user & dev guides.
-
-    - How to enable mock vs. real LLM, env vars, expected endpoints, sample flows.
-
-----------
-
-## Non-Goals for M1
-
-- No mutating actions (service calls, restarts, reauth)
-- No policy file or executor (M2)
-- No telemetry collection
-
+- No advanced policies (time windows, user groups) — defer to M3.
+- No telemetry.
+- No external action marketplace.
 ----------
 
 ## Environment Variables (planned)
