@@ -86,6 +86,15 @@ def _last_occurrence(path: Path) -> str:
     return _format_ts(ts)
 
 
+def _count_occurrences(path: Path) -> int:
+    """Return the number of non-empty lines in ``path``."""
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            return sum(1 for line in f if line.strip())
+    except FileNotFoundError:  # pragma: no cover - defensive
+        return 0
+
+
 def _load_analyses(directory: Path) -> dict[str, dict[str, object]]:
     """Return mapping of incident file name to latest analysis result."""
     mapping: dict[str, dict[str, object]] = {}
@@ -115,15 +124,16 @@ def _load_analyses(directory: Path) -> dict[str, dict[str, object]]:
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
 
-def render_index(entries: list[tuple[str, str, str]]) -> bytes:
+def render_index(entries: list[tuple[str, int, str, str]]) -> bytes:
     """Render a simple HA-style page for incidents with details links."""
     items = "\n".join(
         (
             f"<li class='item'><span class='name'>{html.escape(desc)}</span>"
+            f"<span class='occurrences'>{occ}</span>"
             f"<span class='timestamp'>{html.escape(last)}</span>"
             f"<a href=\"details/{html.escape(name)}\">View</a></li>"
         )
-        for desc, last, name in entries
+        for desc, occ, last, name in entries
     )
     template = (TEMPLATE_DIR / "index.html").read_text(encoding="utf-8")
     body = Template(template).safe_substitute(items=items)
@@ -234,7 +244,7 @@ def start_http_server(
         def do_GET(self) -> None:  # noqa: D401 - HTTP handler
             path = unquote(self.path.rstrip("/"))
             if path == "" or path == "/":
-                incidents: list[tuple[str, str, str]] = []
+                incidents: list[tuple[str, int, str, str]] = []
                 analyses = (
                     _load_analyses(analysis_dir) if analysis_dir is not None else {}
                 )
@@ -242,7 +252,11 @@ def start_http_server(
                     inc_path = incident_dir / name
                     ana = analyses.get(name, {})
                     desc = str(ana.get("summary") or ana.get("impact") or name)
-                    incidents.append((desc, _last_occurrence(inc_path), name))
+                    occurrences = _count_occurrences(inc_path)
+                    incidents.append(
+                        (desc, occurrences, _last_occurrence(inc_path), name)
+                    )
+                incidents.sort(key=lambda x: x[1], reverse=True)
                 body = render_index(incidents)
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
