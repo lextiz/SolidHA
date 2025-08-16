@@ -45,15 +45,15 @@ Home Assistant is powerful, but complex stacks (integrations, add-ons, flaky dev
 
     - LLM proposes fixes but **does not** change HA.
 
-2. **M1 – Analysis-Only Agent**
+1. **M1 – Analysis-Only Agent**
 
     - Strict JSON schema outputs (RCA + plan + tests). No writes.
 
-3. **M2 – Guarded Executor**
+1. **M2 – Guarded Executor**
 
     - Allow‑listed actions (reload automations, restart integrations, reauth flow triggers, backups, core restart last-resort). Dry-run → approval → execute → verify.
 
-4. **M3 – Policies & Scenario Tests**
+1. **M3 – Policies & Scenario Tests**
 
     - Policy file (what the agent may touch), quiet hours, mandatory verification tests, scenario suite in CI.
 
@@ -130,11 +130,11 @@ ha-llm-ops/
 
 1. **Clone**: `git clone https://github.com/<you>/ha-llm-ops && cd ha-llm-ops`
 
-2. **Bootstrap**: `make bootstrap` (to be added in M0.0; installs pre-commit, sets up venv, etc.)
+1. **Bootstrap**: `make bootstrap` (to be added in M0.0; installs pre-commit, sets up venv, etc.)
 
-3. **Run unit tests**: `make test`
+1. **Run unit tests**: `make test`
 
-4. **Build add-on (local)**: `docker build -t ha-llm-ops:addon ./addons/ha-llm-ops`
+1. **Build add-on (local)**: `docker build -t ha-llm-ops:addon ./addons/ha-llm-ops`
 
 ----------
 
@@ -162,13 +162,13 @@ ha-llm-ops/
 
 1. **Never push to** `**main**`**.** Create a branch & open a PR.
 
-2. **Keep PRs small** and self-contained.
+1. **Keep PRs small** and self-contained.
 
-3. **Update tests** (or add) with every behavior change.
+1. **Update tests** (or add) with every behavior change.
 
-4. **No network secrets** in tests; use mocks or fixtures.
+1. **No network secrets** in tests; use mocks or fixtures.
 
-5. **Follow checklists** in PR description and keep them all checked.
+1. **Follow checklists** in PR description and keep them all checked.
 
 ### PR Template Checklist (autofilled by CI)
 
