@@ -97,6 +97,26 @@ def _count_occurrences(path: Path) -> int:
         return 0
 
 
+def _short_description(path: Path) -> str:
+    """Best effort short description based on the last incident line."""
+
+    try:
+        last = ""
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    last = line
+        if not last:
+            return path.name
+        record = json.loads(last)
+        for key in ("message", "msg", "event_type"):
+            if key in record:
+                return str(record[key])
+        return json.dumps(record, sort_keys=True)
+    except Exception:  # pragma: no cover - defensive
+        return path.name
+
+
 def _load_ignored(directory: Path) -> set[str]:
     """Return set of ignored incident file names."""
 
@@ -284,7 +304,7 @@ def start_http_server(
                     desc = str(
                         ana.get("summary")
                         or ana.get("impact")
-                        or name
+                        or _short_description(inc_path)
                     )
                     occurrences = _count_occurrences(inc_path)
                     is_ignored = name in ignored
