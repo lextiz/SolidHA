@@ -18,8 +18,11 @@ class CandidateAction(BaseModel):
 
 class RcaResult(BaseModel):
     """LLM-provided root cause analysis result."""
-
-    summary: str = Field(..., description="Short summary of the incident")
+    summary: str = Field(
+        ...,
+        description="Short summary of the incident",
+        max_length=200,
+    )
     root_cause: str = Field(
         ...,
         description="Detailed explanation of the primary reason for the incident",

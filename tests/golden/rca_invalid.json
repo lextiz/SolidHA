@@ -1,8 +1,9 @@
 {
-  "root_cause": "something",
-  "impact": "bad things",
-  "confidence": 1.2,
-  "candidate_actions": [],
-  "risk": "unknown"
+    "summary": "this summary is definitely too long this summary is definitely too long this summary is definitely too long this summary is definitely too long this summary is definitely too long this summary is definitely too long ",
+    "root_cause": "something",
+    "impact": "bad things",
+    "confidence": 1.2,
+    "candidate_actions": [],
+    "risk": "unknown"
 }
 
