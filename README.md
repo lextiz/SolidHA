@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/lextiz/SolidHA/actions/workflows/ci.yml/badge.svg)](https://github.com/lextiz/SolidHA/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/lextiz/SolidHA/branch/main/graph/badge.svg)](https://codecov.io/gh/lextiz/SolidHA)
+
 [![Install Add-on](https://my.home-assistant.io/badges/supervisor_addon.svg)](https://my.home-assistant.io/redirect/supervisor_addon/?addon=ha_llm_ops&repository_url=https%3A%2F%2Fgithub.com%2Flextiz%2FSolidHA)
 
 > **Goal:** A Home Assistant (HA) Supervisor add-on that continuously observes your HA system, performs AI-driven root cause analysis for instability, proposes safe fixes, and optionally executes guarded remediations after taking a backup.
