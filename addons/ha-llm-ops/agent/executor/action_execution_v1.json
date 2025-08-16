@@ -1,0 +1,42 @@
+{
+  "$defs": {
+    "ActionProposal": {
+      "description": "LLM-provided proposal for an action.",
+      "properties": {
+        "action_id": {
+          "description": "Identifier of the proposed action",
+          "title": "Action Id",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": true,
+          "description": "Parameters for the action",
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "action_id"
+      ],
+      "title": "ActionProposal",
+      "type": "object"
+    }
+  },
+  "description": "Request to execute a previously proposed action.",
+  "properties": {
+    "proposal": {
+      "$ref": "#/$defs/ActionProposal"
+    },
+    "dry_run": {
+      "default": false,
+      "description": "Whether to simulate without applying",
+      "title": "Dry Run",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "proposal"
+  ],
+  "title": "ActionExecution",
+  "type": "object"
+}
