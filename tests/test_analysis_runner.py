@@ -147,3 +147,47 @@ def test_run_forever_cancel(tmp_path: Path) -> None:
             await task
 
     asyncio.run(run_and_cancel())
+
+
+def test_runner_retries_failed_analysis(tmp_path: Path) -> None:
+    inc_dir = tmp_path / "inc"
+    out_dir = tmp_path / "out"
+    inc_dir.mkdir()
+    out_dir.mkdir()
+
+    _incident(inc_dir / "incidents_1.jsonl", "2024-01-01T00:00:00+00:00")
+
+    class FailLLM:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate(self, prompt: str, *, timeout: float) -> str:  # noqa: D401
+            """Raise to simulate LLM failure."""
+            self.calls += 1
+            raise RuntimeError("boom")
+
+    current = 0.0
+
+    def now() -> float:
+        return current
+
+    llm = FailLLM()
+    runner = AnalysisRunner(
+        inc_dir,
+        out_dir,
+        llm,  # type: ignore[arg-type]
+        rate_seconds=0,
+        max_lines=5,
+        max_bytes=1000,
+        now_fn=now,
+    )
+
+    for _ in range(5):
+        runner.run_once()
+        current = runner._next_run
+
+    runner.run_once()
+    current = runner._next_run
+    runner.run_once()
+    assert llm.calls == 5
+    assert (inc_dir / "incidents_1.jsonl") in runner._processed
