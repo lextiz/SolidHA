@@ -30,5 +30,18 @@ def test_http_server(tmp_path: Path) -> None:
             f"http://127.0.0.1:{port}/details/problems_1.jsonl", timeout=5
         )
         assert "a" in resp.text
+        resp = requests.get(f"http://127.0.0.1:{port}/unknown", timeout=5)
+        assert resp.status_code == 404
+        resp = requests.get(
+            f"http://127.0.0.1:{port}/problems/missing.jsonl", timeout=5
+        )
+        assert resp.status_code == 404
+        resp = requests.delete(
+            f"http://127.0.0.1:{port}/delete/problems_1.jsonl", timeout=5
+        )
+        assert resp.status_code == 200
+        assert not (tmp_path / "problems_1.jsonl").exists()
+        resp = requests.delete(f"http://127.0.0.1:{port}/oops", timeout=5)
+        assert resp.status_code == 404
     finally:
         server.shutdown()

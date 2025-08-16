@@ -47,3 +47,12 @@ def test_export_schemas(tmp_path: Path) -> None:
     }
     for path in paths:
         json.loads(path.read_text())
+
+
+def test_export_schemas_default() -> None:
+    paths = export_schemas()
+    assert {p.name for p in paths} == {
+        "action_proposal_v1.json",
+        "action_execution_v1.json",
+        "execution_result_v1.json",
+    }

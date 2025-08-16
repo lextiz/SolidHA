@@ -72,3 +72,18 @@ def test_openai_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(RuntimeError):
         OpenAI()
+
+
+def test_generate_includes_project_header(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_post(
+        url: str,
+        headers: dict[str, str],
+        json: dict[str, Any],
+        timeout: float,
+    ) -> DummyResponse:
+        assert headers["OpenAI-Project"] == "proj"
+        return DummyResponse({"output_text": "ok"})
+
+    monkeypatch.setattr("agent.llm.openai.requests.post", fake_post)
+    llm = OpenAI(api_key="key", project_id="proj")
+    assert llm.generate("hi", timeout=1) == "ok"
