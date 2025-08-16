@@ -1,5 +1,5 @@
 name: HA LLM Ops
-version: 0.0.31
+version: 0.0.32
 slug: ha_llm_ops
 description: LLM-powered add-on that analyzes Home Assistant incidents and suggests safe fixes.
 arch:

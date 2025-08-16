@@ -70,7 +70,7 @@ def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
         server.shutdown()
 
 
-def test_http_root_page_without_analysis_shows_event(
+def test_http_root_page_without_analysis_has_empty_summary(
     devux: ModuleType, tmp_path: Path
 ) -> None:
     inc = tmp_path / "incidents_1.jsonl"
@@ -81,7 +81,8 @@ def test_http_root_page_without_analysis_shows_event(
         port = server.server_address[1]
         resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
         assert resp.status_code == 200
-        assert "oops" in resp.text
+        assert "<span class='name'></span>" in resp.text
+        assert "oops" not in resp.text
         assert "class='name'>incidents_1.jsonl<" not in resp.text
     finally:
         server.shutdown()
