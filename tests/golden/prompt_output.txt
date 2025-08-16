@@ -48,6 +48,12 @@ Schema:
       "title": "Impact",
       "type": "string"
     },
+    "name": {
+      "description": "Short name of the incident",
+      "maxLength": 15,
+      "title": "Name",
+      "type": "string"
+    },
     "recurrence_pattern": {
       "description": "Regular expression to find occurrences of the same kind of problem in the future",
       "title": "Recurrence Pattern",
@@ -78,6 +84,7 @@ Schema:
     }
   },
   "required": [
+    "name",
     "summary",
     "root_cause",
     "impact",

@@ -7,6 +7,7 @@ import json
 from .base import LLM
 
 _RESPONSE = {
+    "name": "mock incident",
     "summary": "mock summary",
     "root_cause": "mock root cause",
     "impact": "mock impact",

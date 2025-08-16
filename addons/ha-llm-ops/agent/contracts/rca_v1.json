@@ -24,6 +24,12 @@
   },
   "description": "LLM-provided root cause analysis result.",
   "properties": {
+    "name": {
+      "description": "Short name of the incident",
+      "maxLength": 15,
+      "title": "Name",
+      "type": "string"
+    },
     "summary": {
       "description": "Short summary of the incident",
       "title": "Summary",
@@ -74,6 +80,7 @@
     }
   },
   "required": [
+    "name",
     "summary",
     "root_cause",
     "impact",

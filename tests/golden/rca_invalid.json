@@ -1,4 +1,5 @@
 {
+  "name": "this name is definitely too long",
   "root_cause": "something",
   "impact": "bad things",
   "confidence": 1.2,
