@@ -46,12 +46,14 @@ def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
     inc.write_text("{\"time_fired\":\"2024-01-01T00:00:00+00:00\"}\n", encoding="utf-8")
     ana_record = {
         "incident": str(inc),
-        "summary": "summary",
-        "root_cause": "rc",
-        "impact": "system broken",
-        "confidence": 0.5,
-        "risk": "low",
-        "recurrence_pattern": "pattern",
+        "result": {
+            "summary": "summary",
+            "root_cause": "rc",
+            "impact": "system broken",
+            "confidence": 0.5,
+            "risk": "low",
+            "recurrence_pattern": "pattern",
+        },
         "event": {"event_type": "trigger"},
     }
     (tmp_path / "analyses_1.jsonl").write_text(json.dumps(ana_record), encoding="utf-8")
@@ -70,36 +72,21 @@ def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
         server.shutdown()
 
 
-def test_http_root_page_without_analysis_shows_event(
-    devux: ModuleType, tmp_path: Path
-) -> None:
-    inc = tmp_path / "incidents_1.jsonl"
-    inc.write_text('{"message":"oops"}\n', encoding="utf-8")
-    server = devux.start_http_server(tmp_path, host="127.0.0.1", port=0)
-    try:
-        time.sleep(0.1)
-        port = server.server_address[1]
-        resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
-        assert resp.status_code == 200
-        assert "oops" in resp.text
-        assert "class='name'>incidents_1.jsonl<" not in resp.text
-    finally:
-        server.shutdown()
-
-
 def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
     inc = tmp_path / "incidents_1.jsonl"
     inc.write_text("{\"time_fired\":\"2024-01-01T00:00:00+00:00\"}\n", encoding="utf-8")
     ana_record = {
         "incident": str(inc),
-        "summary": "summary",
-        "root_cause": "rc",
-        "impact": "system broken",
-        "confidence": 0.5,
-        "risk": "low",
-        "candidate_actions": [{"action": "act", "rationale": "why"}],
-        "tests": ["check"],
-        "recurrence_pattern": "pattern",
+        "result": {
+            "summary": "summary",
+            "root_cause": "rc",
+            "impact": "system broken",
+            "confidence": 0.5,
+            "risk": "low",
+            "candidate_actions": [{"action": "act", "rationale": "why"}],
+            "tests": ["check"],
+            "recurrence_pattern": "pattern",
+        },
         "event": {"event_type": "trigger"},
     }
     (tmp_path / "analyses_1.jsonl").write_text(json.dumps(ana_record), encoding="utf-8")
@@ -259,7 +246,7 @@ def test_http_get_analysis_file_404(devux: ModuleType, tmp_path: Path) -> None:
 def test_http_delete_incident(devux: ModuleType, tmp_path: Path) -> None:
     inc = tmp_path / "incidents_1.jsonl"
     inc.write_text("{}", encoding="utf-8")
-    ana_record = {"incident": str(inc), "summary": "s"}
+    ana_record = {"incident": str(inc), "result": {"summary": "s"}}
     (tmp_path / "analyses_1.jsonl").write_text(
         json.dumps(ana_record) + "\n", encoding="utf-8"
     )

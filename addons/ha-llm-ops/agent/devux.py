@@ -97,26 +97,6 @@ def _count_occurrences(path: Path) -> int:
         return 0
 
 
-def _short_description(path: Path) -> str:
-    """Best effort short description based on the last incident line."""
-
-    try:
-        last = ""
-        with path.open("r", encoding="utf-8") as f:
-            for line in f:
-                if line.strip():
-                    last = line
-        if not last:
-            return path.name
-        record = json.loads(last)
-        for key in ("message", "msg", "event_type"):
-            if key in record:
-                return str(record[key])
-        return json.dumps(record, sort_keys=True)
-    except Exception:  # pragma: no cover - defensive
-        return path.name
-
-
 def _load_ignored(directory: Path) -> set[str]:
     """Return set of ignored incident file names."""
 
@@ -152,17 +132,13 @@ def _load_analyses(directory: Path) -> dict[str, dict[str, object]]:
             except json.JSONDecodeError:  # pragma: no cover - defensive
                 continue
             inc = record.get("incident")
-            if not isinstance(inc, str):
-                continue
+            result = record.get("result")
             event = record.get("event")
-            combined = {
-                key: value
-                for key, value in record.items()
-                if key not in {"incident", "event"}
-            }
-            if event is not None:
-                combined["trigger_event"] = event
-            mapping[Path(inc).name] = combined
+            if isinstance(inc, str) and isinstance(result, dict):
+                combined = dict(result)
+                if event is not None:
+                    combined["trigger_event"] = event
+                mapping[Path(inc).name] = combined
     return mapping
 
 
@@ -308,7 +284,7 @@ def start_http_server(
                     desc = str(
                         ana.get("summary")
                         or ana.get("impact")
-                        or _short_description(inc_path)
+                        or name
                     )
                     occurrences = _count_occurrences(inc_path)
                     is_ignored = name in ignored
