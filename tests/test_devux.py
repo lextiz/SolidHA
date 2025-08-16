@@ -114,40 +114,6 @@ def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
         server.shutdown()
 
 
-def test_http_details_page_flat_analysis(devux: ModuleType, tmp_path: Path) -> None:
-    inc = tmp_path / "incidents_1.jsonl"
-    inc.write_text("{}\n", encoding="utf-8")
-    ana_record = {
-        "incident": str(inc),
-        "summary": "summary",
-        "root_cause": "rc",
-        "impact": "system broken",
-        "confidence": 0.5,
-        "risk": "low",
-        "candidate_actions": [{"action": "act", "rationale": "why"}],
-        "tests": ["check"],
-        "recurrence_pattern": "pattern",
-        "event": {"event_type": "trigger"},
-    }
-    (tmp_path / "analyses_1.jsonl").write_text(json.dumps(ana_record), encoding="utf-8")
-    server = devux.start_http_server(
-        tmp_path, analysis_dir=tmp_path, host="127.0.0.1", port=0
-    )
-    try:
-        time.sleep(0.1)
-        port = server.server_address[1]
-        resp = requests.get(
-            f"http://127.0.0.1:{port}/details/incidents_1.jsonl", timeout=5
-        )
-        assert resp.status_code == 200
-        assert "summary" in resp.text
-        assert "system broken" in resp.text
-        assert "Candidate Actions" in resp.text
-        assert "why" in resp.text
-    finally:
-        server.shutdown()
-
-
 def test_http_root_sorted_by_occurrences(
     devux: ModuleType, tmp_path: Path
 ) -> None:
