@@ -69,6 +69,42 @@ def test_monitor_analyzes_and_counts(tmp_path: Path) -> None:
     assert lines[1]["occurrence"] == 2 and "result" not in lines[1]
 
 
+def test_monitor_recurs_with_whitespace_pattern(tmp_path: Path) -> None:
+    class CountingLLM(MockLLM):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate(self, prompt: str, *, timeout: float) -> str:
+            self.calls += 1
+            resp = json.loads(super().generate(prompt, timeout=timeout))
+            resp["recurrence_pattern"] = r'"result":\s*\{[\s\S]*"success": false'
+            return json.dumps(resp)
+
+    llm = CountingLLM()
+    events = [
+        _event("trace", {"result": {"success": False}}),
+        _event("trace", {"result": {"success": False, "extra": 1}}),
+    ]
+
+    async def run_test() -> None:
+        server, url = await _serve(events)
+        try:
+            await asyncio.wait_for(
+                monitor(url, token="t", problem_dir=tmp_path, llm=llm, limit=2),
+                timeout=3,
+            )
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    asyncio.run(run_test())
+
+    assert llm.calls == 1
+    files = sorted(tmp_path.glob("problems_*.jsonl"))
+    lines = [json.loads(line) for line in files[0].read_text().splitlines()]
+    assert lines[1]["occurrence"] == 2
+
+
 def test_monitor_filters_events(tmp_path: Path) -> None:
     msgs = [
         {"type": "pong"},
@@ -107,10 +143,12 @@ def test_monitor_extra_headers_and_break(
 ) -> None:
     class FakeConn:
         def __init__(self) -> None:
-            self._msgs = iter([
-                json.dumps({"type": "auth_required"}),
-                json.dumps({"type": "auth_ok"}),
-            ])
+            self._msgs = iter(
+                [
+                    json.dumps({"type": "auth_required"}),
+                    json.dumps({"type": "auth_ok"}),
+                ]
+            )
 
         async def send(self, msg: str) -> None:  # pragma: no cover - no behavior
             pass

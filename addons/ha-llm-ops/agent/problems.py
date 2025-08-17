@@ -163,7 +163,7 @@ async def monitor(
                     if not should_log:
                         continue
 
-                    event_json = json.dumps(event, sort_keys=True)
+                    event_json = json.dumps(event, sort_keys=True, indent=2)
                     matched: dict[str, Any] | None = None
                     for problem in problems:
                         if problem["pattern"].search(event_json):
@@ -182,9 +182,11 @@ async def monitor(
                         last_analysis = asyncio.get_event_loop().time()
                         record["result"] = result.model_dump()
                         try:
-                            pattern = re.compile(result.recurrence_pattern)
+                            pattern = re.compile(result.recurrence_pattern, re.DOTALL)
                         except re.error:  # pragma: no cover - defensive
-                            pattern = re.compile(re.escape(result.recurrence_pattern))
+                            pattern = re.compile(
+                                re.escape(result.recurrence_pattern), re.DOTALL
+                            )
                         problems.append({"pattern": pattern, "count": 1})
                     else:
                         matched["count"] += 1

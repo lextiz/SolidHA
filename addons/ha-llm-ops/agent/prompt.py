@@ -23,7 +23,7 @@ def build_rca_prompt(
     """
 
     schema = json.dumps(RcaResult.model_json_schema(), indent=2)
-    ctx = json.dumps(context, indent=2)
+    ctx = json.dumps(context, sort_keys=True, indent=2)
     if max_lines is not None:
         ctx = "\n".join(ctx.splitlines()[:max_lines])
     return (
@@ -35,4 +35,3 @@ def build_rca_prompt(
 
 
 __all__ = ["build_rca_prompt"]
-

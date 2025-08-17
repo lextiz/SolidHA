@@ -70,14 +70,14 @@ def _load_problems(directory: Path) -> dict[str, _ProblemEntry]:
             event = record.get("event")
             if not isinstance(event, dict):
                 continue
-            event_json = json.dumps(event, sort_keys=True)
+            event_json = json.dumps(event, sort_keys=True, indent=2)
             ts = _event_ts(event)
             result = record.get("result")
             if isinstance(result, dict) and "recurrence_pattern" in result:
                 key = hashlib.sha1(
                     result["recurrence_pattern"].encode("utf-8")
                 ).hexdigest()
-                pattern = re.compile(result["recurrence_pattern"])
+                pattern = re.compile(result["recurrence_pattern"], re.DOTALL)
                 entry = mapping.get(key)
                 if entry is None:
                     summary = str(result.get("summary") or result.get("impact") or key)
@@ -135,7 +135,7 @@ def delete_problem(directory: Path, key: str) -> None:
                 continue
             event = record.get("event")
             if isinstance(event, dict):
-                event_json = json.dumps(event, sort_keys=True)
+                event_json = json.dumps(event, sort_keys=True, indent=2)
                 if pattern.search(event_json):
                     changed = True
                     continue
