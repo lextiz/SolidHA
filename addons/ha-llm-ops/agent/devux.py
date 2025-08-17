@@ -241,6 +241,13 @@ def start_http_server(directory: Path, *, port: int = 8000) -> ThreadingHTTPServ
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: D401 - HTTP handler
             path = self.path.rstrip("/")
+            if path.startswith("/delete/"):
+                name = path.split("/", 2)[2]
+                delete_problem(directory, name)
+                self.send_response(303)
+                self.send_header("Location", "/")
+                self.end_headers()
+                return
             if path == "" or path == "/":
                 problems = _load_problems(directory)
                 entries = [

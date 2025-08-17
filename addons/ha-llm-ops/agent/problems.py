@@ -219,10 +219,10 @@ async def monitor(
                         matched["count"] += 1
                         LOGGER.info(
                             "Existing problem occurred again: pattern=%s occurrence=%s "
-                            "event=%s",
+                            "type=%s",
                             matched["pattern"].pattern,
                             matched["count"],
-                            event_json,
+                            etype,
                         )
                         record = {"event": event, "occurrence": matched["count"]}
 
