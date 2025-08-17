@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 import time
@@ -58,6 +59,19 @@ def test_list_and_delete(tmp_path: Path) -> None:
     remaining = path.read_text(encoding="utf-8")
     assert rec2 in remaining and rec3 in remaining
     assert rec1 not in remaining and rec4 not in remaining
+
+
+def test_load_problems_invalid_pattern(tmp_path: Path) -> None:
+    result = _sample_result()
+    result["recurrence_pattern"] = "foo(?m)bar"
+    rec = _record("2024-01-01T00:00:00Z", 1, result, {"msg": "foo"})
+    path = tmp_path / "problems_1.jsonl"
+    path.write_text(f"{rec}\n", encoding="utf-8")
+
+    problems = devux._load_problems(tmp_path)
+    key, entry = next(iter(problems.items()))
+    assert entry.pattern.pattern == re.escape("foo(?m)bar")
+    assert key == hashlib.sha1(b"foo(?m)bar").hexdigest()
 
 
 def test_http_server(tmp_path: Path) -> None:
