@@ -39,7 +39,7 @@ def test_monitor_analyzes_and_counts(tmp_path: Path) -> None:
         def generate(self, prompt: str, *, timeout: float) -> str:
             self.calls += 1
             resp = json.loads(super().generate(prompt, timeout=timeout))
-            resp["recurrence_pattern"] = '"success": false'
+            resp["recurrence_pattern"] = '"success":false'
             return json.dumps(resp)
 
     llm = CountingLLM()

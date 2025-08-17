@@ -40,13 +40,16 @@ def test_list_and_delete(tmp_path: Path) -> None:
     rec1 = _record("2024-01-01T00:00:00Z", 1, _sample_result(), {"msg": "foo"})
     rec2 = json.dumps({"event": "bad", "occurrence": 1})
     rec3 = _record("2024-01-03T00:00:00Z", 1, extra={"msg": "bar"})
+    rec4 = _record("2024-01-04T00:00:00Z", 2, extra={"msg": "foo"})
     path = tmp_path / "problems_1.jsonl"
-    path.write_text(f"{rec1}\n\n{rec2}\n{rec3}\n", encoding="utf-8")
+    path.write_text(f"{rec1}\n\n{rec2}\n{rec3}\n{rec4}\n", encoding="utf-8")
 
     assert devux.list_problems(tmp_path) == ["problems_1.jsonl"]
     problems = devux._load_problems(tmp_path)
     key = next(iter(problems))
-    assert problems[key].occurrences == 1
+    assert problems[key].occurrences == 2
+    assert len(problems[key].events) == 2
+    assert problems[key].last_seen == "2024-01-04 00:00:00"
     assert devux._event_ts({}) == ""
 
     devux.delete_problem(tmp_path, "missing")
@@ -54,6 +57,7 @@ def test_list_and_delete(tmp_path: Path) -> None:
     assert path.exists()
     remaining = path.read_text(encoding="utf-8")
     assert rec2 in remaining and rec3 in remaining
+    assert rec1 not in remaining and rec4 not in remaining
 
 
 def test_http_server(tmp_path: Path) -> None:

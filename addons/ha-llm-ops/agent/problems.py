@@ -166,9 +166,14 @@ async def monitor(
                         continue
 
                     event_json = json.dumps(event, sort_keys=True, indent=2)
+                    event_json_compact = json.dumps(
+                        event, sort_keys=True, separators=(",", ":")
+                    )
                     matched: dict[str, Any] | None = None
                     for problem in problems:
-                        if problem["pattern"].search(event_json):
+                        if problem["pattern"].search(event_json) or problem[
+                            "pattern"
+                        ].search(event_json_compact):
                             matched = problem
                             break
 

@@ -104,7 +104,9 @@ def test_end_to_end_problem_flow(tmp_path: Path) -> None:
         def generate(self, prompt: str, *, timeout: float) -> str:
             self.calls += 1
             resp = json.loads(super().generate(prompt, timeout=timeout))
-            resp["recurrence_pattern"] = "wiz_rgbww_tunable_f8f860_power.*unavailable"
+            resp["recurrence_pattern"] = (
+                '"entity_id":"sensor.wiz_rgbww_tunable_f8f860_power"'
+            )
             return json.dumps(resp)
 
     os.environ.pop("OPENAI_API_KEY", None)
@@ -135,7 +137,9 @@ def test_end_to_end_problem_flow(tmp_path: Path) -> None:
     result = RcaResult.model_validate(first["result"])
     assert result.summary and result.root_cause and result.recurrence_pattern
     pattern = re.compile(result.recurrence_pattern)
-    assert pattern.search(json.dumps(second_event, sort_keys=True))
+    assert pattern.search(
+        json.dumps(second_event, sort_keys=True, separators=(",", ":"))
+    )
     assert second["occurrence"] == 2 and "result" not in second
     assert llm.calls == 1
 
