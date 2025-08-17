@@ -74,10 +74,12 @@ def _load_problems(directory: Path) -> dict[str, _ProblemEntry]:
             ts = _event_ts(event)
             result = record.get("result")
             if isinstance(result, dict) and "recurrence_pattern" in result:
-                key = hashlib.sha1(
-                    result["recurrence_pattern"].encode("utf-8")
-                ).hexdigest()
-                pattern = re.compile(result["recurrence_pattern"], re.DOTALL)
+                pattern_str = result["recurrence_pattern"]
+                key = hashlib.sha1(pattern_str.encode("utf-8")).hexdigest()
+                try:
+                    pattern = re.compile(pattern_str, re.DOTALL)
+                except re.error:
+                    pattern = re.compile(re.escape(pattern_str), re.DOTALL)
                 entry = mapping.get(key)
                 if entry is None:
                     summary = str(result.get("summary") or result.get("impact") or key)
