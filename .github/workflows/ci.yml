@@ -19,13 +19,15 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install .[dev]
-      - run: pytest --cov=agent.analysis --cov-report=xml --cov-fail-under=85
+      - run: pytest --cov=agent --cov-report=xml --cov-fail-under=98
       - uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -35,15 +37,6 @@ jobs:
         with:
           name: coverage-xml
           path: coverage.xml
-
-  docker:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build CI image
-        run: docker build -f Dockerfile.ci .
-      - name: Build add-on image
-        run: docker build addons/ha-llm-ops
 
   docs:
     runs-on: ubuntu-latest

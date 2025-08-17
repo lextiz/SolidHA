@@ -4,7 +4,7 @@ The HA LLM Ops add-on observes your Home Assistant system and uses a language mo
 
 ## Features
 
-- Collects incidents from Home Assistant logs and status signals
+- Collects problems from Home Assistant logs and status signals
 - Generates root cause analyses and remediation recommendations
 - Provides a built-in panel to review findings
 

@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from agent.contracts import RcaResult
+from agent.contracts.rca import export_schema
 
 
 def test_schema_matches_export() -> None:
@@ -14,17 +15,33 @@ def test_schema_matches_export() -> None:
 
 
 @pytest.mark.parametrize(
-    "sample_path,expect_valid",
+    "payload,expect_valid",
     [
-        ("tests/golden/rca_valid.json", True),
-        ("tests/golden/rca_invalid.json", False),
+        (
+            {
+                "summary": "s",
+                "root_cause": "r",
+                "impact": "i",
+                "confidence": 0.5,
+                "risk": "low",
+                "recurrence_pattern": "a.*",
+            },
+            True,
+        ),
+        ({"summary": "s", "root_cause": "r"}, False),
     ],
 )
-def test_vectors(sample_path: str, expect_valid: bool) -> None:
-    data = json.loads(Path(sample_path).read_text())
+def test_vectors(payload: dict, expect_valid: bool) -> None:
     if expect_valid:
-        RcaResult.model_validate(data)
+        RcaResult.model_validate(payload)
     else:
         with pytest.raises(ValidationError):
-            RcaResult.model_validate(data)
+            RcaResult.model_validate(payload)
+
+
+def test_export_schema(tmp_path: Path) -> None:
+    out = export_schema(tmp_path / "rca.json")
+    assert out.exists()
+    # Ensure default path is also handled without writing
+    export_schema()
 
