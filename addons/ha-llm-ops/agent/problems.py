@@ -6,24 +6,26 @@ import asyncio
 import inspect
 import json
 import logging
+import re
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
 
 import websockets
-from websockets.exceptions import (
-    ConnectionClosed,
-    InvalidHandshake,
-)
+from websockets.exceptions import ConnectionClosed, InvalidHandshake
+
+from .llm import LLM, create_llm
+from .parse import parse_result
+from .prompt import build_rca_prompt
 
 
 class AuthenticationError(RuntimeError):
     """Raised when Home Assistant authentication fails."""
 
 
-class IncidentLogger:
-    """Write events to rotating JSONL files."""
+class ProblemLogger:
+    """Write problems to rotating JSONL files."""
 
     def __init__(self, directory: Path, max_bytes: int = 1_000_000) -> None:
         self.directory = directory
@@ -34,12 +36,12 @@ class IncidentLogger:
 
     def _open_file(self) -> TextIO:
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-        path = self.directory / f"incidents_{timestamp}_{self._counter}.jsonl"
+        path = self.directory / f"problems_{timestamp}_{self._counter}.jsonl"
         self._counter += 1
         return path.open("a", encoding="utf-8")
 
-    def write(self, event: dict[str, Any]) -> None:
-        line = json.dumps(event, sort_keys=True)
+    def write(self, record: dict[str, Any]) -> None:
+        line = json.dumps(record, sort_keys=True)
         if self._file.tell() + len(line) + 1 > self.max_bytes:
             self._file.close()
             self._file = self._open_file()
@@ -90,16 +92,22 @@ async def _authenticate(ws: Any, token: str) -> None:
         raise AuthenticationError(f"authentication failed: {pretty}")
 
 
-async def observe(
+async def monitor(
     url: str,
     token: str,
-    incident_dir: Path,
+    problem_dir: Path,
     *,
     max_bytes: int = 1_000_000,
     limit: int | None = None,
+    llm: LLM | None = None,
+    analysis_rate_seconds: float = 0.0,
+    analysis_max_lines: int | None = None,
 ) -> None:
-    """Connect to the HA WebSocket API and persist selected events."""
-    logger = IncidentLogger(incident_dir, max_bytes=max_bytes)
+    """Observe events and analyze problems in a single loop."""
+
+    logger = ProblemLogger(problem_dir, max_bytes=max_bytes)
+    llm = llm or create_llm()
+    problems: list[dict[str, Any]] = []
     backoff = 1
     processed = 0
 
@@ -110,6 +118,7 @@ async def observe(
     else:
         kwargs["additional_headers"] = headers
 
+    last_analysis = 0.0
     while True:
         try:
             async with websockets.connect(url, **kwargs) as ws:
@@ -154,7 +163,34 @@ async def observe(
                     if not should_log:
                         continue
 
-                    logger.write(event)
+                    event_json = json.dumps(event, sort_keys=True)
+                    matched: dict[str, Any] | None = None
+                    for problem in problems:
+                        if problem["pattern"].search(event_json):
+                            matched = problem
+                            break
+
+                    if matched is None:
+                        record: dict[str, Any] = {"event": event, "occurrence": 1}
+                        now = asyncio.get_event_loop().time()
+                        delay = last_analysis + analysis_rate_seconds - now
+                        if delay > 0:
+                            await asyncio.sleep(delay)
+                        prompt = build_rca_prompt(event, max_lines=analysis_max_lines)
+                        raw = llm.generate(prompt, timeout=300)
+                        result = parse_result(raw)
+                        last_analysis = asyncio.get_event_loop().time()
+                        record["result"] = result.model_dump()
+                        try:
+                            pattern = re.compile(result.recurrence_pattern)
+                        except re.error:  # pragma: no cover - defensive
+                            pattern = re.compile(re.escape(result.recurrence_pattern))
+                        problems.append({"pattern": pattern, "count": 1})
+                    else:
+                        matched["count"] += 1
+                        record = {"event": event, "occurrence": matched["count"]}
+
+                    logger.write(record)
                     processed += 1
                     if limit is not None and processed >= limit:
                         return
@@ -177,3 +213,6 @@ async def observe(
             backoff = 1
         if limit is not None and processed >= limit:
             break
+
+
+__all__ = ["AuthenticationError", "monitor"]

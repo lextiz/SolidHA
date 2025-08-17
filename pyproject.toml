@@ -38,11 +38,17 @@ python_version = "3.11"
 strict = true
 
 [tool.pytest.ini_options]
-markers = ["integration: mark tests requiring Docker"]
+markers = [
+    "integration: mark tests requiring Docker",
+    "docker: tests that require a local Docker daemon",
+]
 pythonpath = ["."]
 
 [tool.setuptools]
 packages = ["agent"]
 
 [tool.setuptools.package-data]
-"agent" = ["templates/*.html"]
+"agent" = []
+
+[tool.coverage.run]
+omit = ["*/__main__.py"]

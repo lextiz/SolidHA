@@ -1,7 +1,7 @@
 {
   "$defs": {
     "CandidateAction": {
-      "description": "A potential action to mitigate the incident.",
+      "description": "A potential action to mitigate the problem.",
       "properties": {
         "action": {
           "description": "Short description of the action",
@@ -25,12 +25,12 @@
   "description": "LLM-provided root cause analysis result.",
   "properties": {
     "summary": {
-      "description": "Short summary of the incident",
+      "description": "Short summary of the problem",
       "title": "Summary",
       "type": "string"
     },
     "root_cause": {
-      "description": "Detailed explanation of the primary reason for the incident",
+      "description": "Detailed explanation of the primary reason for the problem",
       "title": "Root Cause",
       "type": "string"
     },

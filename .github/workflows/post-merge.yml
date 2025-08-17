@@ -1,0 +1,23 @@
+name: post-merge
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install .[dev]
+      - run: pytest tests/test_analysis_e2e.py::test_end_to_end_problem_flow -vv
+      - run: pytest -m docker -vv
+      - name: Build CI image
+        run: docker build -f Dockerfile.ci .
+      - name: Build add-on image
+        run: docker build addons/ha-llm-ops

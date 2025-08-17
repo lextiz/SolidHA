@@ -1,7 +1,7 @@
 name: HA LLM Ops
-version: 0.0.35
+version: 0.0.46
 slug: ha_llm_ops
-description: LLM-powered add-on that analyzes Home Assistant incidents and suggests safe fixes.
+description: LLM-powered add-on that analyzes Home Assistant problems and suggests safe fixes.
 arch:
   - aarch64
   - amd64
@@ -15,20 +15,14 @@ panel_title: Autofix Problems
 options:
   log_level: info
   buffer_size: 10
-  incident_dir: /data/incidents
   analysis_rate_seconds: 60
   analysis_max_lines: 20
-  llm_backend: mock
   openai_api_key: ""
-  ha_ws_url: ws://supervisor/core/websocket
 schema:
   log_level: list(debug|info|warning|error)?
   buffer_size: int
-  incident_dir: str
-  analysis_rate_seconds: int
-  analysis_max_lines: int
-  llm_backend: list(mock|openai)?
+  analysis_rate_seconds: int?
+  analysis_max_lines: int?
   openai_api_key: password?
-  ha_ws_url: str?
 icon: addons/ha-llm-ops/icon.png
 logo: addons/ha-llm-ops/icon.png
