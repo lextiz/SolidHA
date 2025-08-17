@@ -117,7 +117,7 @@ def test_monitor_automation_failure(tmp_path: Path) -> None:
                         token=token,
                         problem_dir=problem_dir,
                         llm=MockLLM(),
-                        limit=1,
+                        limit=3,
                     ),
                     timeout=60,
                 )
@@ -128,9 +128,7 @@ def test_monitor_automation_failure(tmp_path: Path) -> None:
         files = list(problem_dir.glob("problems_*.jsonl"))
         assert files, "No problem files created"
         lines = [
-            json.loads(line)
-            for file in files
-            for line in file.read_text().splitlines()
+            json.loads(line) for file in files for line in file.read_text().splitlines()
         ]
         assert any(
             "nonexistent.does_not_exist" in json.dumps(line) for line in lines

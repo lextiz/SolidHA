@@ -15,10 +15,11 @@ def test_list_and_delete(tmp_path: Path) -> None:
 
 
 def test_http_server(tmp_path: Path) -> None:
-    (tmp_path / "problems_1.jsonl").write_text("{\"a\":1}\n", encoding="utf-8")
+    (tmp_path / "problems_1.jsonl").write_text('{"a":1}\n', encoding="utf-8")
     server = devux.start_http_server(tmp_path, port=0)
     try:
         time.sleep(0.1)
+        assert server.server_address[0] == "0.0.0.0"
         port = server.server_address[1]
         resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
         assert "problems_1.jsonl" in resp.text

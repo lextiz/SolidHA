@@ -86,9 +86,7 @@ def test_end_to_end_problem_flow(tmp_path: Path) -> None:
     second_event = copy.deepcopy(base_event)
     second_event["context"]["id"] = "01K2TCSVD6Y6367NV7ERZSCVF5"
     second_event["time_fired"] = "2025-08-16T21:34:05.830408+00:00"
-    second_event["data"]["new_state"]["context"]["id"] = (
-        "01K2TCSVD6Y6367NV7ERZSCVF5"
-    )
+    second_event["data"]["new_state"]["context"]["id"] = "01K2TCSVD6Y6367NV7ERZSCVF5"
     second_event["data"]["new_state"]["last_changed"] = (
         "2025-08-16T21:34:05.830408+00:00"
     )
@@ -109,8 +107,8 @@ def test_end_to_end_problem_flow(tmp_path: Path) -> None:
             resp["recurrence_pattern"] = "wiz_rgbww_tunable_f8f860_power.*unavailable"
             return json.dumps(resp)
 
-    key = os.getenv("OPENAI_API_KEY")
-    llm = None if key else CountingLLM()
+    os.environ.pop("OPENAI_API_KEY", None)
+    llm = CountingLLM()
     events = [
         {"type": "event", "event": base_event},
         {"type": "event", "event": second_event},
@@ -139,8 +137,7 @@ def test_end_to_end_problem_flow(tmp_path: Path) -> None:
     pattern = re.compile(result.recurrence_pattern)
     assert pattern.search(json.dumps(second_event, sort_keys=True))
     assert second["occurrence"] == 2 and "result" not in second
-    if llm is not None:
-        assert llm.calls == 1
+    assert llm.calls == 1
 
     server = start_http_server(tmp_path, port=0)
     try:
