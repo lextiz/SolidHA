@@ -14,9 +14,9 @@ def _sample_result() -> dict:
         "root_cause": "Root cause",
         "impact": "Impact",
         "confidence": 0.5,
-        "candidate_actions": [],
+        "candidate_actions": [{"action": "act", "rationale": "why"}],
         "risk": "low",
-        "tests": [],
+        "tests": ["check"],
         "recurrence_pattern": "foo",
     }
 
@@ -38,16 +38,22 @@ def _record(
 
 def test_list_and_delete(tmp_path: Path) -> None:
     rec1 = _record("2024-01-01T00:00:00Z", 1, _sample_result(), {"msg": "foo"})
-    rec2 = _record("2024-01-02T00:00:00Z", 2, extra={"msg": "foo"})
+    rec2 = json.dumps({"event": "bad", "occurrence": 1})
+    rec3 = _record("2024-01-03T00:00:00Z", 1, extra={"msg": "bar"})
     path = tmp_path / "problems_1.jsonl"
-    path.write_text(f"{rec1}\n{rec2}\n", encoding="utf-8")
+    path.write_text(f"{rec1}\n\n{rec2}\n{rec3}\n", encoding="utf-8")
 
+    assert devux.list_problems(tmp_path) == ["problems_1.jsonl"]
     problems = devux._load_problems(tmp_path)
     key = next(iter(problems))
-    assert problems[key].occurrences == 2
+    assert problems[key].occurrences == 1
+    assert devux._event_ts({}) == ""
 
+    devux.delete_problem(tmp_path, "missing")
     devux.delete_problem(tmp_path, key)
-    assert not path.exists()
+    assert path.exists()
+    remaining = path.read_text(encoding="utf-8")
+    assert rec2 in remaining and rec3 in remaining
 
 
 def test_http_server(tmp_path: Path) -> None:
@@ -59,14 +65,22 @@ def test_http_server(tmp_path: Path) -> None:
     try:
         time.sleep(0.1)
         port = server.server_address[1]
-        resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
+        base = f"http://127.0.0.1:{port}"
+        resp = requests.get(base + "/", timeout=5)
         assert "Problem summary" in resp.text
         match = re.search(r"details/(\w+)", resp.text)
         assert match is not None
         key = match.group(1)
-        resp = requests.get(f"http://127.0.0.1:{port}/details/{key}", timeout=5)
-        assert "Root Cause" in resp.text
-        resp = requests.delete(f"http://127.0.0.1:{port}/delete/{key}", timeout=5)
+        resp = requests.get(f"{base}/details/{key}", timeout=5)
+        assert "Root Cause" in resp.text and "act" in resp.text
+        assert requests.get(f"{base}/details/bad", timeout=5).status_code == 404
+        assert requests.get(f"{base}/problems", timeout=5).json() == [path.name]
+        resp = requests.get(f"{base}/problems/{path.name}", timeout=5)
+        assert resp.status_code == 200
+        assert requests.get(f"{base}/problems/nope", timeout=5).status_code == 404
+        assert requests.get(f"{base}/unknown", timeout=5).status_code == 404
+        assert requests.delete(f"{base}/nope", timeout=5).status_code == 404
+        resp = requests.delete(f"{base}/delete/{key}", timeout=5)
         assert resp.status_code == 200
         assert not path.exists()
     finally:
