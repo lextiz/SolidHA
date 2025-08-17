@@ -15,8 +15,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install .[dev]
-      - run: pytest tests/test_analysis_e2e.py::test_end_to_end_problem_flow -vv
-      - run: pytest -m docker -vv
+      - run: pytest -vv
       - name: Build CI image
         run: docker build -f Dockerfile.ci .
       - name: Build add-on image
