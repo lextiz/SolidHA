@@ -44,6 +44,7 @@ markers = [
     "docker: tests that require a local Docker daemon",
 ]
 pythonpath = ["."]
+addopts = "--cov=agent --cov=addons/ha-llm-ops/agent --cov-report=term-missing --cov-fail-under=100"
 
 [tool.setuptools]
 packages = ["agent"]
@@ -53,3 +54,6 @@ packages = ["agent"]
 
 [tool.coverage.run]
 omit = ["*/__main__.py"]
+
+[tool.coverage.report]
+fail_under = 100
