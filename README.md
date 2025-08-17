@@ -126,7 +126,7 @@ Below are ready-to-run bite-sized tasks for the autonomous agent. Each bullet is
 
 ----------
 
-## Detailed Task Breakdown (Bite-Sized for Codex)
+## Detailed Task Breakdown
 
 ### M2.0 – Policy & contracts (status: done)
 
