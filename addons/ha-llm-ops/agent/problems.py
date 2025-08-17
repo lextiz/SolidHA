@@ -19,6 +19,8 @@ from .llm import LLM, create_llm
 from .parse import parse_result
 from .prompt import build_rca_prompt
 
+LOGGER = logging.getLogger(__name__)
+
 
 class AuthenticationError(RuntimeError):
     """Raised when Home Assistant authentication fails."""
@@ -105,7 +107,7 @@ async def monitor(
 ) -> None:
     """Observe events and analyze problems in a single loop."""
 
-    logger = ProblemLogger(problem_dir, max_bytes=max_bytes)
+    problem_logger = ProblemLogger(problem_dir, max_bytes=max_bytes)
     llm = llm or create_llm()
     problems: list[dict[str, Any]] = []
     backoff = 1
@@ -171,28 +173,55 @@ async def monitor(
                             break
 
                     if matched is None:
+                        LOGGER.warning(
+                            "New problem found: type=%s data=%s", etype, edata
+                        )
                         record: dict[str, Any] = {"event": event, "occurrence": 1}
                         now = asyncio.get_event_loop().time()
                         delay = last_analysis + analysis_rate_seconds - now
                         if delay > 0:
                             await asyncio.sleep(delay)
-                        prompt = build_rca_prompt(event, max_lines=analysis_max_lines)
-                        raw = llm.generate(prompt, timeout=300)
-                        result = parse_result(raw)
-                        last_analysis = asyncio.get_event_loop().time()
-                        record["result"] = result.model_dump()
+                        LOGGER.debug(
+                            "Sending problem for analysis: event=%s", event_json
+                        )
                         try:
-                            pattern = re.compile(result.recurrence_pattern, re.DOTALL)
-                        except re.error:  # pragma: no cover - defensive
-                            pattern = re.compile(
-                                re.escape(result.recurrence_pattern), re.DOTALL
+                            prompt = build_rca_prompt(
+                                event, max_lines=analysis_max_lines
                             )
-                        problems.append({"pattern": pattern, "count": 1})
+                            raw = llm.generate(prompt, timeout=300)
+                            result = parse_result(raw)
+                        except Exception:  # pragma: no cover - error path
+                            LOGGER.exception("Analysis failed for event %s", event_json)
+                            record["error"] = "analysis_failed"
+                        else:
+                            last_analysis = asyncio.get_event_loop().time()
+                            record["result"] = result.model_dump()
+                            LOGGER.info(
+                                "Analysis successful: summary=%s pattern=%s",
+                                result.summary,
+                                result.recurrence_pattern,
+                            )
+                            try:
+                                pattern = re.compile(
+                                    result.recurrence_pattern, re.DOTALL
+                                )
+                            except re.error:  # pragma: no cover - defensive
+                                pattern = re.compile(
+                                    re.escape(result.recurrence_pattern), re.DOTALL
+                                )
+                            problems.append({"pattern": pattern, "count": 1})
                     else:
                         matched["count"] += 1
+                        LOGGER.info(
+                            "Existing problem occurred again: pattern=%s occurrence=%s "
+                            "event=%s",
+                            matched["pattern"].pattern,
+                            matched["count"],
+                            event_json,
+                        )
                         record = {"event": event, "occurrence": matched["count"]}
 
-                    logger.write(record)
+                    problem_logger.write(record)
                     processed += 1
                     if limit is not None and processed >= limit:
                         return
