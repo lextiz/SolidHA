@@ -144,7 +144,7 @@ def test_end_to_end_problem_flow(tmp_path: Path) -> None:
         time.sleep(0.1)
         port = server.server_address[1]
         resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
-        assert files[0].name in resp.text
+        assert result.summary in resp.text
         resp = requests.get(
             f"http://127.0.0.1:{port}/problems/{files[0].name}", timeout=5
         )
