@@ -26,3 +26,7 @@ def test_load_policy_non_list(tmp_path: Path) -> None:
     policy_file.write_text("action: test\n")
     with pytest.raises(ValueError):
         load_policies(policy_file)
+
+
+def test_load_policy_missing(tmp_path: Path) -> None:
+    assert load_policies(tmp_path / "missing.yaml") == []

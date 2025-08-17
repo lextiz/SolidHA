@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from agent.contracts import RcaResult
+from agent.contracts.rca import export_schema
 
 
 def test_schema_matches_export() -> None:
@@ -27,4 +28,11 @@ def test_vectors(sample_path: str, expect_valid: bool) -> None:
     else:
         with pytest.raises(ValidationError):
             RcaResult.model_validate(data)
+
+
+def test_export_schema(tmp_path: Path) -> None:
+    out = export_schema(tmp_path / "rca.json")
+    assert out.exists()
+    # Ensure default path is also handled without writing
+    export_schema()
 

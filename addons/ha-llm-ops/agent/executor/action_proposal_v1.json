@@ -7,7 +7,6 @@
       "type": "string"
     },
     "params": {
-      "additionalProperties": true,
       "description": "Parameters for the action",
       "title": "Params",
       "type": "object"

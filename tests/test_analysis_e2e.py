@@ -1,46 +1,69 @@
+import asyncio
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 import requests
+import websockets
 
-from agent.analysis.llm.mock import MockLLM
-from agent.analysis.runner import AnalysisRunner
-from agent.analysis.types import RcaOutput
+from agent.contracts import RcaResult
 from agent.devux import start_http_server
+from agent.llm.mock import MockLLM
+from agent.problems import monitor
 
 
-def _make_incident(path: Path) -> None:
-    path.write_text('{"time_fired":"2024-01-01T00:00:00+00:00"}\n', encoding="utf-8")
+def _event(event_type: str, data: dict) -> dict:
+    return {"type": "event", "event": {"event_type": event_type, "data": data}}
 
 
-def test_end_to_end_analysis(tmp_path: Path) -> None:
-    inc_dir = tmp_path / "inc"
-    out_dir = tmp_path / "out"
-    inc_dir.mkdir()
-    out_dir.mkdir()
-    _make_incident(inc_dir / "incidents_1.jsonl")
+async def _serve(events: list[dict]) -> tuple[Any, str]:
+    async def handler(ws):
+        await ws.send(json.dumps({"type": "auth_required"}))
+        await ws.recv()  # auth
+        await ws.send(json.dumps({"type": "auth_ok"}))
+        await ws.recv()  # subscribe events
+        await ws.recv()  # supervisor subscribe
+        for evt in events:
+            await ws.send(json.dumps(evt))
+        await asyncio.sleep(0.1)
 
-    runner = AnalysisRunner(
-        inc_dir,
-        out_dir,
-        MockLLM(),
-        rate_seconds=0,
-        max_lines=5,
-        max_bytes=1000,
-    )
+    server = await websockets.serve(handler, "localhost", 0)
+    port = server.sockets[0].getsockname()[1]
+    return server, f"ws://localhost:{port}"
 
-    server = start_http_server(inc_dir, analysis_dir=out_dir, host="127.0.0.1", port=0)
+
+def test_end_to_end_problem_flow(tmp_path: Path) -> None:
+    events = [_event("trace", {"result": {"success": False}})]
+
+    async def run_test() -> None:
+        server, url = await _serve(events)
+        try:
+            await asyncio.wait_for(
+                monitor(url, token="t", problem_dir=tmp_path, llm=MockLLM(), limit=1),
+                timeout=3,
+            )
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    asyncio.run(run_test())
+
+    files = list(tmp_path.glob("problems_*.jsonl"))
+    assert len(files) == 1
+    record = json.loads(files[0].read_text().splitlines()[0])
+    RcaResult.model_validate(record["result"])
+
+    server = start_http_server(tmp_path, port=0)
     try:
         time.sleep(0.1)
-        runner.run_once()
-        files = list(out_dir.glob("analyses_*.jsonl"))
-        assert len(files) == 1
-        record = json.loads(files[0].read_text().splitlines()[0])
-        RcaOutput.model_validate(record["result"])
         port = server.server_address[1]
-        resp = requests.get(f"http://127.0.0.1:{port}/analyses", timeout=5)
-        assert resp.status_code == 200
-        assert resp.json() == [files[0].name]
+        resp = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
+        assert files[0].name in resp.text
+        resp = requests.get(
+            f"http://127.0.0.1:{port}/problems/{files[0].name}", timeout=5
+        )
+        served = json.loads(resp.text.splitlines()[0])
+        assert served == record
     finally:
         server.shutdown()
