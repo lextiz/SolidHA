@@ -82,6 +82,10 @@ def test_logging_success_and_existing(
         r.levelno == logging.INFO and "Existing problem occurred again" in r.message
         for r in caplog.records
     )
+    assert not any(
+        "Existing problem occurred again" in r.message and "extra" in r.message
+        for r in caplog.records
+    )
 
 
 def test_logging_analysis_failure(

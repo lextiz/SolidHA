@@ -98,6 +98,12 @@ def test_http_server(tmp_path: Path) -> None:
         assert requests.get(f"{base}/problems/nope", timeout=5).status_code == 404
         assert requests.get(f"{base}/unknown", timeout=5).status_code == 404
         assert requests.delete(f"{base}/nope", timeout=5).status_code == 404
+        resp = requests.get(f"{base}/delete/{key}", timeout=5)
+        assert resp.status_code == 200
+        assert not path.exists()
+
+        # Recreate problem and delete via DELETE method
+        path.write_text(f"{rec1}\n", encoding="utf-8")
         resp = requests.delete(f"{base}/delete/{key}", timeout=5)
         assert resp.status_code == 200
         assert not path.exists()
