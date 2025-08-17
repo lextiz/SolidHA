@@ -128,7 +128,7 @@ Below are ready-to-run bite-sized tasks for the autonomous agent. Each bullet is
 
 ## Detailed Task Breakdown (Bite-Sized for Codex)
 
-### M2.0 – Policy & contracts
+### M2.0 – Policy & contracts (status: done)
 
 1. **Task:** Add `agent/executor/policy.py`.
 
