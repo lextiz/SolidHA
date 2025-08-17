@@ -19,7 +19,7 @@ def delete_problem(directory: Path, name: str) -> None:
 def render_index(names: list[str]) -> bytes:
     """Render a minimal index page."""
     items = "\n".join(
-        f"<li><a href=\"details/{html.escape(n)}\">{html.escape(n)}</a></li>"
+        f'<li><a href="details/{html.escape(n)}">{html.escape(n)}</a></li>'
         for n in names
     )
     return f"<html><body><ul>{items}</ul></body></html>".encode()
@@ -32,7 +32,10 @@ def render_details(path: Path) -> bytes:
 
 
 def start_http_server(directory: Path, *, port: int = 8000) -> ThreadingHTTPServer:
-    """Start a simple thread-based HTTP server for problems."""
+    """Start a simple thread-based HTTP server for problems.
+
+    The server binds to ``0.0.0.0`` so Home Assistant can access it via ingress.
+    """
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
@@ -77,7 +80,7 @@ def start_http_server(directory: Path, *, port: int = 8000) -> ThreadingHTTPServ
                 self.send_response(404)
                 self.end_headers()
 
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server
