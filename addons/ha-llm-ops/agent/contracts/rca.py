@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 
 class CandidateAction(BaseModel):
-    """A potential action to mitigate the incident."""
+    """A potential action to mitigate the problem."""
 
     action: str = Field(..., description="Short description of the action")
     rationale: str = Field(..., description="Why the action may help")
@@ -19,10 +19,10 @@ class CandidateAction(BaseModel):
 class RcaResult(BaseModel):
     """LLM-provided root cause analysis result."""
 
-    summary: str = Field(..., description="Short summary of the incident")
+    summary: str = Field(..., description="Short summary of the problem")
     root_cause: str = Field(
         ...,
-        description="Detailed explanation of the primary reason for the incident",
+        description="Detailed explanation of the primary reason for the problem",
     )
     impact: str = Field(..., description="Observed impact on the system")
     confidence: Annotated[

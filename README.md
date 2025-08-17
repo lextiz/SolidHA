@@ -20,7 +20,7 @@ Home Assistant is powerful, but complex stacks (integrations, add-ons, flaky dev
 **This project** aims to add _operational intelligence_ to HA:
 
 - Observe logs, events, and status signals.
-- Triage incidents with an LLM that has structured context.
+- Triage problems with an LLM that has structured context.
 - Output a clear RCA + stepwise plan.
 - Safely apply allow‑listed remediations (opt‑in), with backup, verify, and rollback.
 
@@ -54,7 +54,7 @@ Home Assistant is powerful, but complex stacks (integrations, add-ons, flaky dev
 - **Guarded Executor (opt-in)**
   - Backup → apply allow‑listed tools → verify tests → rollback on fail.
 - **Change Journal**
-  - Persist incident + remediation outcomes for learning and few-shot examples.
+  - Persist problem + remediation outcomes for learning and few-shot examples.
 
 ----------
 
