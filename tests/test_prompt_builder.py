@@ -8,4 +8,3 @@ def test_build_rca_prompt_snapshot() -> None:
     prompt = build_rca_prompt(context)
     snapshot = Path("tests/snapshots/rca_prompt.txt").read_text()
     assert prompt == snapshot
-

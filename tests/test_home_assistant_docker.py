@@ -13,13 +13,19 @@ def _docker_available() -> bool:
     """Return True if Docker CLI and daemon are available."""
     if shutil.which("docker") is None:
         return False
-    result = subprocess.run([
-        "docker",
-        "info",
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    result = subprocess.run(
+        [
+            "docker",
+            "info",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
     return result.returncode == 0
 
 
+@pytest.mark.docker
 @pytest.mark.integration
 @pytest.mark.skipif(not _docker_available(), reason="Docker daemon not available")
 def test_home_assistant_container() -> None:
