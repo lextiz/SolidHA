@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from agent.analysis.llm.mock import MockLLM
-from agent.analysis.parse import ParseError, parse_result
+from agent.llm.mock import MockLLM
+from agent.parse import ParseError, parse_result
 
 
 def test_parse_valid() -> None:

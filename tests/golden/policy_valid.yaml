@@ -1,5 +1,0 @@
-- action_id: restart_integration
-  allowed: true
-  conditions:
-    integration: zha
-  cooldown_s: 60

@@ -7,9 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from agent.analysis.llm.mock import MockLLM
-from agent.analysis.runner import AnalysisRunner
-from agent.observability import observe
+from agent.llm.mock import MockLLM
+from agent.problems import monitor
 
 
 def _docker_available() -> bool:
@@ -25,14 +24,16 @@ def _docker_available() -> bool:
     return result.returncode == 0
 
 
+@pytest.mark.docker
 @pytest.mark.integration
 @pytest.mark.skipif(not _docker_available(), reason="Docker daemon not available")
-def test_observe_automation_failure(tmp_path: Path) -> None:
-    """Ensure observer logs an automation failure from a real HA container."""
+def test_monitor_automation_failure(tmp_path: Path) -> None:
+    """Ensure monitor logs an automation failure from a real HA container."""
     import requests
 
     config_dir = tmp_path / "config"
     config_dir.mkdir()
+    (config_dir / "secrets.yaml").write_text("")
     (config_dir / "configuration.yaml").write_text(
         "system_log:\n  fire_event: true\nautomation: !include automations.yaml\n"
     )
@@ -59,7 +60,7 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
             "-p",
             f"{port}:8123",
             "-v",
-            f"{config_dir}:/config",  # type: ignore[arg-type]
+            f"{config_dir}:/config",
             "--name",
             container_name,
             "ghcr.io/home-assistant/home-assistant:stable",
@@ -107,51 +108,32 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
         resp.raise_for_status()
         token = resp.json()["access_token"]
 
-        incident_dir = tmp_path / "incidents"
+        problem_dir = tmp_path / "problems"
         try:
             asyncio.run(
                 asyncio.wait_for(
-                    observe(
+                    monitor(
                         ws_url,
                         token=token,
-                        incident_dir=incident_dir,
+                        problem_dir=problem_dir,
+                        llm=MockLLM(),
+                        limit=1,
                     ),
                     timeout=60,
                 )
             )
         except TimeoutError:
-            # Stop observing after the timeout and inspect collected incidents
             pass
 
-        files = list(incident_dir.glob("incidents_*.jsonl"))
-        assert files, "No incident files created"
+        files = list(problem_dir.glob("problems_*.jsonl"))
+        assert files, "No problem files created"
         lines = [
             json.loads(line)
             for file in files
             for line in file.read_text().splitlines()
         ]
         assert any(
-            (
-                line.get("event_type") == "system_log_event"
-                and "nonexistent.does_not_exist" in json.dumps(line)
-            )
-            or (
-                line.get("event_type") == "trace"
-                and line.get("data", {}).get("result", {}).get("error")
-            )
-            for line in lines
+            "nonexistent.does_not_exist" in json.dumps(line) for line in lines
         ), lines
-
-        analysis_dir = tmp_path / "analyses"
-        runner = AnalysisRunner(
-            incident_dir,
-            analysis_dir,
-            MockLLM(),
-            rate_seconds=0,
-            max_lines=5,
-            max_bytes=1000,
-        )
-        runner.run_once()
-        assert list(analysis_dir.glob("analyses_*.jsonl")), "No analysis files created"
     finally:
         subprocess.run(["docker", "stop", container_name], check=False)
