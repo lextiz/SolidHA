@@ -28,6 +28,7 @@ class _ProblemEntry:
     analysis: dict[str, Any]
     events: list[str]
     pattern: re.Pattern[str]
+    trigger_type: str | None = None
     ignored: bool = False
 
 
@@ -79,6 +80,7 @@ def _load_problems(directory: Path) -> dict[str, _ProblemEntry]:
             event_json = json.dumps(event, sort_keys=True, indent=2)
             ts = _event_ts(event)
             result = record.get("result")
+            trigger = record.get("trigger_type")
             if isinstance(result, dict) and "recurrence_pattern" in result:
                 pattern_str = result["recurrence_pattern"]
                 key = hashlib.sha1(pattern_str.encode("utf-8")).hexdigest()
@@ -96,6 +98,7 @@ def _load_problems(directory: Path) -> dict[str, _ProblemEntry]:
                         analysis=result,
                         events=[],
                         pattern=pattern,
+                        trigger_type=str(trigger) if trigger is not None else None,
                         ignored=(directory / f"{key}.ignored").exists(),
                     )
                     mapping[key] = entry
@@ -105,6 +108,8 @@ def _load_problems(directory: Path) -> dict[str, _ProblemEntry]:
                 entry.summary = str(
                     result.get("summary") or result.get("impact") or key
                 )
+                if entry.trigger_type is None:
+                    entry.trigger_type = str(trigger) if trigger is not None else None
                 if ts:
                     entry.last_seen = ts
                 continue
@@ -120,6 +125,8 @@ def _load_problems(directory: Path) -> dict[str, _ProblemEntry]:
             matched.occurrences = record.get("occurrence", matched.occurrences + 1)
             if ts:
                 matched.last_seen = ts
+            if matched.trigger_type is None and trigger is not None:
+                matched.trigger_type = str(trigger)
     return mapping
 
 
@@ -221,7 +228,7 @@ def reanalyze_problem(
     return new_key
 
 
-def render_index(entries: list[tuple[str, int, str, str, bool]]) -> bytes:
+def render_index(entries: list[tuple[str, str, int, str, str, bool]]) -> bytes:
     """Render a simple HA-style page for problems with details links."""
 
     items = "\n".join(
@@ -230,11 +237,12 @@ def render_index(entries: list[tuple[str, int, str, str, bool]]) -> bytes:
             f"<span class='name'>{html.escape(desc)}"
             + (" <span class='ignored'>ignored</span>" if ignored else "")
             + "</span>"
+            f"<span class='trigger'>{html.escape(trigger)}</span>"
             f"<span class='occurrences'>{occ}</span>"
             f"<span class='timestamp'>{html.escape(last)}</span>"
             f'<a href="details/{html.escape(name)}">View</a></li>'
         )
-        for desc, occ, last, name, ignored in entries
+        for desc, trigger, occ, last, name, ignored in entries
     )
     template = (TEMPLATE_DIR / "index.html").read_text(encoding="utf-8")
     body = Template(template).safe_substitute(items=items)
@@ -314,6 +322,7 @@ def render_details(name: str, entry: _ProblemEntry) -> bytes:
         title=html.escape(entry.summary) + (" (ignored)" if entry.ignored else ""),
         occurrences=entry.occurrences,
         last_seen=html.escape(entry.last_seen),
+        trigger_type=html.escape(entry.trigger_type or ""),
         incident=incident_html,
         analysis=analysis_html,
         actions=actions,
@@ -358,10 +367,17 @@ def start_http_server(directory: Path, *, port: int = 8000) -> ThreadingHTTPServ
             if path == "" or path == "/":
                 problems = _load_problems(directory)
                 entries = [
-                    (p.summary, p.occurrences, p.last_seen, key, p.ignored)
+                    (
+                        p.summary,
+                        p.trigger_type or "",
+                        p.occurrences,
+                        p.last_seen,
+                        key,
+                        p.ignored,
+                    )
                     for key, p in problems.items()
                 ]
-                entries.sort(key=lambda x: x[1], reverse=True)
+                entries.sort(key=lambda x: x[2], reverse=True)
                 body = render_index(entries)
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")

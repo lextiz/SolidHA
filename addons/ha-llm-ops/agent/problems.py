@@ -217,9 +217,14 @@ async def monitor(
 
         etype = events[0].get("event_type")
         edata = events[0].get("data", {})
+        trigger = events[0].get("trigger_type")
         if matched is None:
             LOGGER.warning("New problem found: type=%s data=%s", etype, edata)
-            record: dict[str, Any] = {"event": event_ctx, "occurrence": 1}
+            record: dict[str, Any] = {
+                "event": event_ctx,
+                "occurrence": 1,
+                "trigger_type": trigger,
+            }
             now = asyncio.get_event_loop().time()
             delay = last_analysis + analysis_rate_seconds - now
             if delay > 0:
@@ -255,7 +260,11 @@ async def monitor(
                 matched["count"],
                 etype,
             )
-            record = {"event": event_ctx, "occurrence": matched["count"]}
+            record = {
+                "event": event_ctx,
+                "occurrence": matched["count"],
+                "trigger_type": trigger,
+            }
 
         problem_logger.write(record)
         processed += 1
@@ -280,36 +289,41 @@ async def monitor(
                     etype = event.get("event_type")
                     edata = event.get("data", {})
 
-                    should_log = False
+                    trigger_type: str | None = None
 
                     if etype == "system_log_event":
                         level = edata.get("level")
                         if isinstance(level, int):
-                            should_log = level >= 40
+                            if level >= 40:
+                                trigger_type = "error_log"
                         elif isinstance(level, str):
-                            should_log = level.upper() in {"ERROR", "CRITICAL"}
+                            if level.upper() in {"ERROR", "CRITICAL"}:
+                                trigger_type = "error_log"
                     elif etype == "trace":
                         if _contains_failure(edata):
-                            should_log = True
+                            trigger_type = "automation_failure"
                     elif etype == "state_changed":
                         new_state = edata.get("new_state") or {}
                         if (
                             isinstance(new_state, dict)
                             and new_state.get("state") == "unavailable"
                         ):
-                            should_log = True
+                            trigger_type = "entity_unavailable"
                     elif etype == "supervisor_event":
                         if edata.get("event") == "addon":
                             log = edata.get("data", {})
                             level = log.get("level")
                             if isinstance(level, int):
-                                should_log = level >= 40
+                                if level >= 40:
+                                    trigger_type = "error_log"
                             elif isinstance(level, str):
-                                should_log = level.upper() in {"ERROR", "CRITICAL"}
+                                if level.upper() in {"ERROR", "CRITICAL"}:
+                                    trigger_type = "error_log"
 
-                    if not should_log:
+                    if trigger_type is None:
                         continue
 
+                    event["trigger_type"] = trigger_type
                     batcher.add(event)
                 await batcher.flush()
                 if stop or limit == 0:

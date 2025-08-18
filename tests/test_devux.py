@@ -27,11 +27,14 @@ def _record(
     occurrence: int,
     result: dict | None = None,
     extra: dict | None = None,
+    trigger: str | None = None,
 ) -> str:
     event: dict[str, object] = {"time": time_str}
     if extra:
         event.update(extra)
     data: dict[str, object] = {"event": event, "occurrence": occurrence}
+    if trigger is not None:
+        data["trigger_type"] = trigger
     if result is not None:
         data["result"] = result
     return json.dumps(data)
@@ -41,7 +44,7 @@ def test_list_and_delete(tmp_path: Path) -> None:
     rec1 = _record("2024-01-01T00:00:00Z", 1, _sample_result(), {"msg": "foo"})
     rec2 = json.dumps({"event": "bad", "occurrence": 1})
     rec3 = _record("2024-01-03T00:00:00Z", 1, extra={"msg": "bar"})
-    rec4 = _record("2024-01-04T00:00:00Z", 2, extra={"msg": "foo"})
+    rec4 = _record("2024-01-04T00:00:00Z", 2, extra={"msg": "foo"}, trigger="error_log")
     path = tmp_path / "problems_1.jsonl"
     path.write_text(f"{rec1}\n\n{rec2}\n{rec3}\n{rec4}\n", encoding="utf-8")
 

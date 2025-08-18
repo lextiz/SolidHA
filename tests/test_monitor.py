@@ -76,7 +76,9 @@ def test_monitor_analyzes_and_counts(tmp_path: Path) -> None:
     assert files
     lines = [json.loads(line) for line in files[0].read_text().splitlines()]
     assert lines[0]["occurrence"] == 1 and "result" in lines[0]
+    assert lines[0]["trigger_type"] == "automation_failure"
     assert lines[1]["occurrence"] == 2 and "result" not in lines[1]
+    assert lines[1]["trigger_type"] == "automation_failure"
 
 
 def test_monitor_batches_events(tmp_path: Path) -> None:
@@ -119,6 +121,42 @@ def test_monitor_batches_events(tmp_path: Path) -> None:
     files = sorted(tmp_path.glob("problems_*.jsonl"))
     lines = [json.loads(line) for line in files[0].read_text().splitlines()]
     assert len(lines[0]["event"]["events"]) == 2
+
+
+def test_monitor_records_trigger_types(tmp_path: Path) -> None:
+    events = [
+        _event("trace", {"result": {"success": False}}),
+        _event("system_log_event", {"level": 40}),
+        _event("state_changed", {"new_state": {"state": "unavailable"}}),
+    ]
+
+    async def run_test() -> None:
+        server, url = await _serve(events)
+        try:
+            await asyncio.wait_for(
+                monitor(
+                    url,
+                    token="t",
+                    problem_dir=tmp_path,
+                    llm=MockLLM(),
+                    limit=3,
+                    batch_seconds=0,
+                ),
+                timeout=5,
+            )
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    asyncio.run(run_test())
+    files = sorted(tmp_path.glob("problems_*.jsonl"))
+    lines = [json.loads(line) for line in files[0].read_text().splitlines()]
+    triggers = [line["trigger_type"] for line in lines]
+    assert triggers == [
+        "automation_failure",
+        "error_log",
+        "entity_unavailable",
+    ]
 
 
 def test_monitor_uses_saved_patterns(tmp_path: Path) -> None:
