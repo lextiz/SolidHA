@@ -96,11 +96,13 @@ class EventBatcher:
 
     def add(self, event: dict[str, Any]) -> None:
         if self.window <= 0:
-            self._immediate.append(asyncio.create_task(self.callback([event])))
+            loop = asyncio.get_event_loop()
+            self._immediate.append(loop.create_task(self.callback([event])))
             return
         self._events.append(event)
         if self._task is None:
-            self._task = asyncio.create_task(self._run())
+            loop = asyncio.get_event_loop()
+            self._task = loop.create_task(self._run())
 
     async def _run(self) -> None:
         await asyncio.sleep(self.window)
@@ -310,7 +312,7 @@ async def monitor(
 
                     batcher.add(event)
                 await batcher.flush()
-                if stop:
+                if stop or limit == 0:
                     return
         except InvalidHandshake:  # pragma: no cover - handshake retry path
             kwargs.pop("subprotocols", None)
@@ -329,7 +331,7 @@ async def monitor(
             backoff = min(backoff * 2, 30)
         else:  # pragma: no cover - connection closed gracefully
             backoff = 1
-        if stop:
+        if stop or limit == 0:
             break
 
 

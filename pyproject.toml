@@ -37,6 +37,7 @@ select = ["E", "F", "I", "UP"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
+exclude = ["build", "addons/ha-llm-ops/agent", "tests"]
 
 [tool.pytest.ini_options]
 markers = [

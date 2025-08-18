@@ -46,10 +46,14 @@ def test_event_batcher_groups(tmp_path: Path) -> None:
         calls.append(batch)
 
     batcher = problems.EventBatcher(0.01, callback)
-    batcher.add({"a": 1})
-    batcher.add({"b": 2})
-    asyncio.run(asyncio.sleep(0.02))
-    asyncio.run(batcher.flush())
+
+    async def run() -> None:
+        batcher.add({"a": 1})
+        batcher.add({"b": 2})
+        await asyncio.sleep(0.02)
+        await batcher.flush()
+
+    asyncio.run(run())
     assert len(calls) == 1 and len(calls[0]) == 2
 
 
@@ -60,6 +64,10 @@ def test_event_batcher_flush_pending() -> None:
         calls.append(batch)
 
     batcher = problems.EventBatcher(1.0, callback)
-    batcher.add({"a": 1})
-    asyncio.run(batcher.flush())
+
+    async def run() -> None:
+        batcher.add({"a": 1})
+        await batcher.flush()
+
+    asyncio.run(run())
     assert calls == [[{"a": 1}]]
