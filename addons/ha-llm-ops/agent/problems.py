@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import json
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Coroutine, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
@@ -49,6 +50,79 @@ class ProblemLogger:
             self._file = self._open_file()
         self._file.write(line + "\n")
         self._file.flush()
+
+
+def _load_problems(directory: Path) -> list[dict[str, Any]]:
+    """Load previously seen problems from ``directory``."""
+
+    loaded: dict[str, dict[str, Any]] = {}
+    for path in sorted(directory.glob("problems_*.jsonl")):
+        try:
+            for line in path.read_text().splitlines():
+                data = json.loads(line)
+                result = data.get("result") or {}
+                pattern = result.get("recurrence_pattern")
+                if not isinstance(pattern, str):
+                    continue
+                occ = data.get("occurrence")
+                if isinstance(occ, int):
+                    entry = loaded.setdefault(pattern, {"count": 0})
+                    entry["count"] = max(entry["count"], occ)
+        except OSError:  # pragma: no cover - defensive
+            continue
+    problems: list[dict[str, Any]] = []
+    for pattern, entry in loaded.items():
+        try:
+            compiled = re.compile(pattern, re.DOTALL)
+        except re.error:  # pragma: no cover - defensive
+            compiled = re.compile(re.escape(pattern), re.DOTALL)
+        problems.append({"pattern": compiled, "count": entry["count"]})
+    return problems
+
+
+class EventBatcher:
+    """Group events occurring within a time window."""
+
+    def __init__(
+        self,
+        window: float,
+        callback: Callable[[list[dict[str, Any]]], Coroutine[Any, Any, None]],
+    ) -> None:
+        self.window = window
+        self.callback = callback
+        self._events: list[dict[str, Any]] = []
+        self._task: asyncio.Task[None] | None = None
+        self._immediate: list[asyncio.Task[None]] = []
+
+    def add(self, event: dict[str, Any]) -> None:
+        if self.window <= 0:
+            loop = asyncio.get_event_loop()
+            self._immediate.append(loop.create_task(self.callback([event])))
+            return
+        self._events.append(event)
+        if self._task is None:
+            loop = asyncio.get_event_loop()
+            self._task = loop.create_task(self._run())
+
+    async def _run(self) -> None:
+        await asyncio.sleep(self.window)
+        events = self._events
+        self._events = []
+        self._task = None
+        await self.callback(events)
+
+    async def flush(self) -> None:
+        if self._task is not None:
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+        if self._events:
+            events = self._events
+            self._events = []
+            await self.callback(events)
+        if self._immediate:
+            await asyncio.gather(*self._immediate)
+            self._immediate.clear()
 
 
 def _contains_failure(obj: Any) -> bool:
@@ -104,14 +178,16 @@ async def monitor(
     llm: LLM | None = None,
     analysis_rate_seconds: float = 0.0,
     analysis_max_lines: int | None = None,
+    batch_seconds: float = 2.0,
 ) -> None:
     """Observe events and analyze problems in a single loop."""
 
     problem_logger = ProblemLogger(problem_dir, max_bytes=max_bytes)
     llm = llm or create_llm()
-    problems: list[dict[str, Any]] = []
+    problems = _load_problems(problem_dir)
     backoff = 1
     processed = 0
+    stop = False
 
     headers = {"Authorization": f"Bearer {token}"}
     kwargs: dict[str, Any] = {"subprotocols": ["homeassistant"]}
@@ -121,6 +197,73 @@ async def monitor(
         kwargs["additional_headers"] = headers
 
     last_analysis = 0.0
+
+    async def handle_batch(events: list[dict[str, Any]]) -> None:
+        nonlocal last_analysis, processed, stop
+        event_ctx: dict[str, Any] = (
+            events[0] if len(events) == 1 else {"events": events}
+        )
+        event_json = json.dumps(event_ctx, sort_keys=True, indent=2)
+        event_json_compact = json.dumps(
+            event_ctx, sort_keys=True, separators=(",", ":")
+        )
+        matched: dict[str, Any] | None = None
+        for problem in problems:
+            if problem["pattern"].search(event_json) or problem["pattern"].search(
+                event_json_compact
+            ):
+                matched = problem
+                break
+
+        etype = events[0].get("event_type")
+        edata = events[0].get("data", {})
+        if matched is None:
+            LOGGER.warning("New problem found: type=%s data=%s", etype, edata)
+            record: dict[str, Any] = {"event": event_ctx, "occurrence": 1}
+            now = asyncio.get_event_loop().time()
+            delay = last_analysis + analysis_rate_seconds - now
+            if delay > 0:
+                await asyncio.sleep(delay)
+            LOGGER.debug("Sending problem for analysis: event=%s", event_json)
+            try:
+                prompt = build_rca_prompt(event_ctx, max_lines=analysis_max_lines)
+                raw = llm.generate(prompt, timeout=300)
+                result = parse_result(raw)
+            except Exception:  # pragma: no cover - error path
+                LOGGER.exception("Analysis failed for event %s", event_json)
+                record["error"] = "analysis_failed"
+            else:
+                last_analysis = asyncio.get_event_loop().time()
+                record["result"] = result.model_dump()
+                LOGGER.info(
+                    "Analysis successful: summary=%s pattern=%s",
+                    result.summary,
+                    result.recurrence_pattern,
+                )
+                try:
+                    pattern = re.compile(result.recurrence_pattern, re.DOTALL)
+                except re.error:  # pragma: no cover - defensive
+                    pattern = re.compile(
+                        re.escape(result.recurrence_pattern), re.DOTALL
+                    )
+                problems.append({"pattern": pattern, "count": 1})
+        else:
+            matched["count"] += 1
+            LOGGER.info(
+                "Existing problem occurred again: pattern=%s occurrence=%s type=%s",
+                matched["pattern"].pattern,
+                matched["count"],
+                etype,
+            )
+            record = {"event": event_ctx, "occurrence": matched["count"]}
+
+        problem_logger.write(record)
+        processed += 1
+        if limit is not None and processed >= limit:
+            stop = True
+
+    batcher = EventBatcher(batch_seconds, handle_batch)
+
     while True:
         try:
             async with websockets.connect(url, **kwargs) as ws:
@@ -128,6 +271,8 @@ async def monitor(
                 await ws.send(json.dumps({"id": 1, "type": "subscribe_events"}))
                 await ws.send(json.dumps({"type": "supervisor/subscribe"}))
                 async for message in ws:
+                    if stop:
+                        break
                     data = json.loads(message)
                     if data.get("type") != "event":
                         continue
@@ -165,71 +310,10 @@ async def monitor(
                     if not should_log:
                         continue
 
-                    event_json = json.dumps(event, sort_keys=True, indent=2)
-                    event_json_compact = json.dumps(
-                        event, sort_keys=True, separators=(",", ":")
-                    )
-                    matched: dict[str, Any] | None = None
-                    for problem in problems:
-                        if problem["pattern"].search(event_json) or problem[
-                            "pattern"
-                        ].search(event_json_compact):
-                            matched = problem
-                            break
-
-                    if matched is None:
-                        LOGGER.warning(
-                            "New problem found: type=%s data=%s", etype, edata
-                        )
-                        record: dict[str, Any] = {"event": event, "occurrence": 1}
-                        now = asyncio.get_event_loop().time()
-                        delay = last_analysis + analysis_rate_seconds - now
-                        if delay > 0:
-                            await asyncio.sleep(delay)
-                        LOGGER.debug(
-                            "Sending problem for analysis: event=%s", event_json
-                        )
-                        try:
-                            prompt = build_rca_prompt(
-                                event, max_lines=analysis_max_lines
-                            )
-                            raw = llm.generate(prompt, timeout=300)
-                            result = parse_result(raw)
-                        except Exception:  # pragma: no cover - error path
-                            LOGGER.exception("Analysis failed for event %s", event_json)
-                            record["error"] = "analysis_failed"
-                        else:
-                            last_analysis = asyncio.get_event_loop().time()
-                            record["result"] = result.model_dump()
-                            LOGGER.info(
-                                "Analysis successful: summary=%s pattern=%s",
-                                result.summary,
-                                result.recurrence_pattern,
-                            )
-                            try:
-                                pattern = re.compile(
-                                    result.recurrence_pattern, re.DOTALL
-                                )
-                            except re.error:  # pragma: no cover - defensive
-                                pattern = re.compile(
-                                    re.escape(result.recurrence_pattern), re.DOTALL
-                                )
-                            problems.append({"pattern": pattern, "count": 1})
-                    else:
-                        matched["count"] += 1
-                        LOGGER.info(
-                            "Existing problem occurred again: pattern=%s occurrence=%s "
-                            "type=%s",
-                            matched["pattern"].pattern,
-                            matched["count"],
-                            etype,
-                        )
-                        record = {"event": event, "occurrence": matched["count"]}
-
-                    problem_logger.write(record)
-                    processed += 1
-                    if limit is not None and processed >= limit:
-                        return
+                    batcher.add(event)
+                await batcher.flush()
+                if stop or limit == 0:
+                    return
         except InvalidHandshake:  # pragma: no cover - handshake retry path
             kwargs.pop("subprotocols", None)
             continue
@@ -247,7 +331,7 @@ async def monitor(
             backoff = min(backoff * 2, 30)
         else:  # pragma: no cover - connection closed gracefully
             backoff = 1
-        if limit is not None and processed >= limit:
+        if stop or limit == 0:
             break
 
 
