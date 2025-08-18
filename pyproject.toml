@@ -39,7 +39,6 @@ select = ["E", "F", "I", "UP"]
 python_version = "3.11"
 strict = true
 mypy_path = "addons/ha-llm-ops"
-files = ["addons/ha-llm-ops"]
 exclude = ["build", "tests"]
 
 [tool.pytest.ini_options]
