@@ -34,11 +34,7 @@ def test_generate_uses_output_text(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_generate_falls_back_to_message(monkeypatch: pytest.MonkeyPatch) -> None:
-    data = {
-        "output": [
-            {"type": "message", "content": [{"text": "fallback"}]}
-        ]
-    }
+    data = {"output": [{"type": "message", "content": [{"text": "fallback"}]}]}
 
     def fake_post(
         url: str,

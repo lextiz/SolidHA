@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 import websockets
 
+import agent.problems as problems
 from agent.llm.mock import MockLLM
 from agent.problems import monitor
 
@@ -174,7 +175,7 @@ def test_monitor_extra_headers_and_break(
         assert "Authorization" in extra_headers
         return FakeConn()
 
-    monkeypatch.setattr("agent.problems.websockets.connect", fake_connect)
+    monkeypatch.setattr(problems.websockets, "connect", fake_connect)
 
     asyncio.run(
         monitor(

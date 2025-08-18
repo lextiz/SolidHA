@@ -3,10 +3,10 @@
 
 lint:
 >ruff check .
->mypy agent
+>mypy addons/ha-llm-ops/agent
 
 test:
->pytest --cov=agent --cov=addons/ha-llm-ops/agent --cov-report=term-missing --cov-fail-under=100
+>pytest --cov=agent --cov-report=term-missing --cov-fail-under=100
 
 format:
 >ruff format .
