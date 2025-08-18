@@ -37,16 +37,19 @@ select = ["E", "F", "I", "UP"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
+mypy_path = "addons/ha-llm-ops"
+files = ["addons/ha-llm-ops/agent"]
 
 [tool.pytest.ini_options]
 markers = [
     "integration: mark tests requiring Docker",
     "docker: tests that require a local Docker daemon",
 ]
-pythonpath = ["."]
-addopts = "--cov=agent --cov=addons/ha-llm-ops/agent --cov-report=term-missing --cov-fail-under=100"
+pythonpath = ["addons/ha-llm-ops"]
+addopts = "--cov=agent --cov-report=term-missing --cov-fail-under=100"
 
 [tool.setuptools]
+package-dir = {"" = "addons/ha-llm-ops"}
 packages = ["agent"]
 
 [tool.setuptools.package-data]

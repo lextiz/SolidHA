@@ -19,7 +19,7 @@ def _normalize(schema: dict) -> dict:
 
 
 def test_schema_matches_export() -> None:
-    base = Path("agent/executor")
+    base = Path("addons/ha-llm-ops/agent/executor")
     cases = [
         (ActionProposal, "action_proposal_v1.json"),
         (ActionExecution, "action_execution_v1.json"),
