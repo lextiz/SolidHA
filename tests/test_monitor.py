@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 import websockets
 
+import agent.problems as problems
 from agent.llm.mock import MockLLM
 from agent.problems import monitor
 
@@ -24,6 +25,7 @@ async def _serve(events: list[dict]) -> tuple[Any, str]:
         await ws.recv()  # supervisor subscribe
         for evt in events:
             await ws.send(json.dumps(evt))
+            await asyncio.sleep(0)
         await asyncio.sleep(0.1)
 
     server = await websockets.serve(handler, "localhost", 0)
@@ -46,6 +48,7 @@ def test_monitor_analyzes_and_counts(tmp_path: Path) -> None:
     events = [
         _event("trace", {"result": {"success": False}}),
         _event("trace", {"result": {"success": False, "extra": 1}}),
+        _event("trace", {"result": {"success": False, "extra": 2}}),
     ]
 
     async def run_test() -> None:
@@ -300,6 +303,36 @@ def test_monitor_extra_headers_and_break(
             llm=MockLLM(),
             limit=0,
             batch_seconds=0,
+        )
+    )
+
+
+def test_monitor_breaks_on_connection_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class FailingConnect:
+        async def __aenter__(self) -> None:
+            raise websockets.exceptions.ConnectionClosed(1000, "boom")
+
+        async def __aexit__(self, exc_type, exc, tb) -> None:
+            return None
+
+    def fake_connect(*args: Any, **kwargs: Any) -> FailingConnect:
+        return FailingConnect()
+
+    async def fast_sleep(_: float) -> None:
+        pass
+
+    monkeypatch.setattr(problems.websockets, "connect", fake_connect)
+    monkeypatch.setattr(problems.asyncio, "sleep", fast_sleep)
+
+    asyncio.run(
+        monitor(
+            "ws://example",
+            token="t",
+            problem_dir=tmp_path,
+            llm=MockLLM(),
+            limit=0,
         )
     )
 

@@ -39,6 +39,13 @@ def test_load_problems(tmp_path: Path) -> None:
     assert loaded[0]["count"] == 2
 
 
+def test_load_problems_skips_invalid_pattern(tmp_path: Path) -> None:
+    (tmp_path / "problems_0.jsonl").write_text(
+        json.dumps({"result": {"recurrence_pattern": None}}) + "\n"
+    )
+    assert problems._load_problems(tmp_path) == []
+
+
 def test_event_batcher_groups(tmp_path: Path) -> None:
     calls: list[list[dict]] = []
 
