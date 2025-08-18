@@ -9,7 +9,7 @@ from agent.contracts.rca import export_schema
 
 
 def test_schema_matches_export() -> None:
-    schema_path = Path("agent/contracts/rca_v1.json")
+    schema_path = Path("addons/ha-llm-ops/agent/contracts/rca_v1.json")
     exported = json.loads(schema_path.read_text())
     assert exported == RcaResult.model_json_schema()
 
@@ -44,4 +44,3 @@ def test_export_schema(tmp_path: Path) -> None:
     assert out.exists()
     # Ensure default path is also handled without writing
     export_schema()
-
