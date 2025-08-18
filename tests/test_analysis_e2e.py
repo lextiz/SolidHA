@@ -9,7 +9,6 @@ from typing import Any
 
 import requests
 import websockets
-
 from agent.contracts import RcaResult
 from agent.devux import start_http_server
 from agent.llm.mock import MockLLM

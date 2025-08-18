@@ -1,9 +1,8 @@
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
-
 from agent.executor.policy import load_policies
+from pydantic import ValidationError
 
 
 def test_load_policy_valid(tmp_path: Path) -> None:

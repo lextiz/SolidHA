@@ -6,7 +6,6 @@ from typing import Any
 
 import pytest
 import websockets
-
 from agent.llm.mock import MockLLM
 from agent.problems import monitor
 

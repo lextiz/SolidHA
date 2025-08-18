@@ -1,7 +1,6 @@
 import json
 
 import pytest
-
 from agent.llm.mock import MockLLM
 from agent.parse import ParseError, parse_result
 
