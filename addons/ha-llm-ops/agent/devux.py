@@ -172,24 +172,36 @@ def unignore_problem(directory: Path, key: str) -> None:
     (directory / f"{key}.ignored").unlink(missing_ok=True)
 
 
-def reanalyze_problem(directory: Path, key: str, *, llm: LLM | None = None) -> None:
-    """Re-run analysis for problem ``key`` and append the result."""
+def reanalyze_problem(
+    directory: Path, key: str, *, llm: LLM | None = None
+) -> str | None:
+    """Re-run analysis for problem ``key`` and replace it.
+
+    Returns the new problem key if successful.
+    """
 
     problems = _load_problems(directory)
     entry = problems.get(key)
     if entry is None or not entry.events:
-        return
+        return None
     try:
         event_ctx = json.loads(entry.events[-1])
     except json.JSONDecodeError:  # pragma: no cover - defensive
-        return
+        return None
     llm = llm or create_llm()
     try:
         prompt = build_rca_prompt(event_ctx)
         raw = llm.generate(prompt, timeout=300)
         result = parse_result(raw).model_dump()
     except Exception:  # pragma: no cover - best effort
-        return
+        return None
+
+    ignored_path = directory / f"{key}.ignored"
+    ignored = ignored_path.exists()
+
+    delete_problem(directory, key)
+    ignored_path.unlink(missing_ok=True)
+
     logger = ProblemLogger(directory)
     logger.write(
         {
@@ -198,6 +210,15 @@ def reanalyze_problem(directory: Path, key: str, *, llm: LLM | None = None) -> N
             "result": result,
         }
     )
+
+    pattern_str = result.get("recurrence_pattern")
+    if isinstance(pattern_str, str):
+        new_key = hashlib.sha1(pattern_str.encode("utf-8")).hexdigest()
+    else:  # pragma: no cover - defensive
+        new_key = key
+    if ignored:
+        (directory / f"{new_key}.ignored").write_text("1", encoding="utf-8")
+    return new_key
 
 
 def render_index(entries: list[tuple[str, int, str, str, bool]]) -> bytes:
@@ -329,9 +350,9 @@ def start_http_server(directory: Path, *, port: int = 8000) -> ThreadingHTTPServ
                 return
             if path.startswith("/reanalyze/"):
                 name = path.split("/", 2)[2]
-                reanalyze_problem(directory, name)
+                new_name = reanalyze_problem(directory, name)
                 self.send_response(303)
-                self.send_header("Location", f"/details/{name}")
+                self.send_header("Location", f"/details/{new_name or name}")
                 self.end_headers()
                 return
             if path == "" or path == "/":

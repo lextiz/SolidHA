@@ -120,6 +120,7 @@ def test_ignore_and_reanalyze(tmp_path: Path, monkeypatch) -> None:
         def generate(self, prompt: str, *, timeout: float) -> str:  # noqa: D401
             data = _sample_result().copy()
             data["summary"] = "reanalyzed"
+            data["recurrence_pattern"] = "bar"
             return json.dumps(data)
 
     monkeypatch.setattr(devux, "create_llm", lambda: DummyLLM())
@@ -133,23 +134,35 @@ def test_ignore_and_reanalyze(tmp_path: Path, monkeypatch) -> None:
         resp = requests.get(base + "/", timeout=5)
         match = re.search(r"details/(\w+)", resp.text)
         assert match is not None
-        key = match.group(1)
+        old_key = match.group(1)
 
         resp = requests.get(f"{base}/reanalyze/nope", allow_redirects=False, timeout=5)
         assert resp.status_code == 303
 
-        resp = requests.get(f"{base}/ignore/{key}", allow_redirects=False, timeout=5)
+        resp = requests.get(
+            f"{base}/ignore/{old_key}", allow_redirects=False, timeout=5
+        )
         assert resp.status_code == 303
-        assert (tmp_path / f"{key}.ignored").exists()
+        assert (tmp_path / f"{old_key}.ignored").exists()
 
-        resp = requests.get(f"{base}/unignore/{key}", allow_redirects=False, timeout=5)
+        new_key = hashlib.sha1(b"bar").hexdigest()
+        resp = requests.get(
+            f"{base}/reanalyze/{old_key}", allow_redirects=False, timeout=5
+        )
         assert resp.status_code == 303
-        assert not (tmp_path / f"{key}.ignored").exists()
+        assert resp.headers["Location"] == f"/details/{new_key}"
+        assert not (tmp_path / f"{old_key}.ignored").exists()
+        assert (tmp_path / f"{new_key}.ignored").exists()
 
-        resp = requests.get(f"{base}/reanalyze/{key}", allow_redirects=False, timeout=5)
-        assert resp.status_code == 303
-
-        resp = requests.get(f"{base}/details/{key}", timeout=5)
+        resp = requests.get(f"{base}/details/{new_key}", timeout=5)
         assert "reanalyzed" in resp.text
+        assert requests.get(f"{base}/details/{old_key}", timeout=5).status_code == 404
+
+        resp = requests.get(
+            f"{base}/unignore/{new_key}", allow_redirects=False, timeout=5
+        )
+        assert resp.status_code == 303
+        assert not (tmp_path / f"{new_key}.ignored").exists()
+        assert list(devux._load_problems(tmp_path)) == [new_key]
     finally:
         server.shutdown()
