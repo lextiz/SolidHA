@@ -14,6 +14,11 @@ from pathlib import Path
 from string import Template
 from typing import Any
 
+from .llm import LLM, create_llm
+from .parse import parse_result
+from .problems import ProblemLogger
+from .prompt import build_rca_prompt
+
 
 @dataclass
 class _ProblemEntry:
@@ -23,6 +28,7 @@ class _ProblemEntry:
     analysis: dict[str, Any]
     events: list[str]
     pattern: re.Pattern[str]
+    ignored: bool = False
 
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
@@ -90,10 +96,15 @@ def _load_problems(directory: Path) -> dict[str, _ProblemEntry]:
                         analysis=result,
                         events=[],
                         pattern=pattern,
+                        ignored=(directory / f"{key}.ignored").exists(),
                     )
                     mapping[key] = entry
                 entry.events.append(event_json)
                 entry.occurrences = record.get("occurrence", 1)
+                entry.analysis = result
+                entry.summary = str(
+                    result.get("summary") or result.get("impact") or key
+                )
                 if ts:
                     entry.last_seen = ts
                 continue
@@ -149,17 +160,81 @@ def delete_problem(directory: Path, key: str) -> None:
                 path.unlink(missing_ok=True)
 
 
-def render_index(entries: list[tuple[str, int, str, str]]) -> bytes:
+def ignore_problem(directory: Path, key: str) -> None:
+    """Mark problem ``key`` as ignored."""
+
+    (directory / f"{key}.ignored").write_text("1", encoding="utf-8")
+
+
+def unignore_problem(directory: Path, key: str) -> None:
+    """Remove ignore flag for problem ``key``."""
+
+    (directory / f"{key}.ignored").unlink(missing_ok=True)
+
+
+def reanalyze_problem(
+    directory: Path, key: str, *, llm: LLM | None = None
+) -> str | None:
+    """Re-run analysis for problem ``key`` and replace it.
+
+    Returns the new problem key if successful.
+    """
+
+    problems = _load_problems(directory)
+    entry = problems.get(key)
+    if entry is None or not entry.events:
+        return None
+    try:
+        event_ctx = json.loads(entry.events[-1])
+    except json.JSONDecodeError:  # pragma: no cover - defensive
+        return None
+    llm = llm or create_llm()
+    try:
+        prompt = build_rca_prompt(event_ctx)
+        raw = llm.generate(prompt, timeout=300)
+        result = parse_result(raw).model_dump()
+    except Exception:  # pragma: no cover - best effort
+        return None
+
+    ignored_path = directory / f"{key}.ignored"
+    ignored = ignored_path.exists()
+
+    delete_problem(directory, key)
+    ignored_path.unlink(missing_ok=True)
+
+    logger = ProblemLogger(directory)
+    logger.write(
+        {
+            "event": event_ctx,
+            "occurrence": entry.occurrences,
+            "result": result,
+        }
+    )
+
+    pattern_str = result.get("recurrence_pattern")
+    if isinstance(pattern_str, str):
+        new_key = hashlib.sha1(pattern_str.encode("utf-8")).hexdigest()
+    else:  # pragma: no cover - defensive
+        new_key = key
+    if ignored:
+        (directory / f"{new_key}.ignored").write_text("1", encoding="utf-8")
+    return new_key
+
+
+def render_index(entries: list[tuple[str, int, str, str, bool]]) -> bytes:
     """Render a simple HA-style page for problems with details links."""
 
     items = "\n".join(
         (
-            f"<li class='item'><span class='name'>{html.escape(desc)}</span>"
+            "<li class='item'>"
+            f"<span class='name'>{html.escape(desc)}"
+            + (" <span class='ignored'>ignored</span>" if ignored else "")
+            + "</span>"
             f"<span class='occurrences'>{occ}</span>"
             f"<span class='timestamp'>{html.escape(last)}</span>"
             f'<a href="details/{html.escape(name)}">View</a></li>'
         )
-        for desc, occ, last, name in entries
+        for desc, occ, last, name, ignored in entries
     )
     template = (TEMPLATE_DIR / "index.html").read_text(encoding="utf-8")
     body = Template(template).safe_substitute(items=items)
@@ -223,14 +298,25 @@ def render_details(name: str, entry: _ProblemEntry) -> bytes:
         "<pre>" + "\n".join(html.escape(line) for line in entry.events) + "</pre>"
     )
     analysis_html = _analysis_html(entry.analysis)
+    ignore_action = "unignore" if entry.ignored else "ignore"
+    ignore_label = "Unignore" if entry.ignored else "Ignore"
+    actions = (
+        "<p>"
+        "<a class='button' href='../'>Back</a> "
+        f"<a class='button' href='../reanalyze/{html.escape(name)}'>Reanalyze</a> "
+        f"<a class='button' href='../{ignore_action}/{html.escape(name)}'>"
+        f"{ignore_label}</a> "
+        f"<a class='button danger' href='../delete/{html.escape(name)}'>Delete</a>"
+        "</p>"
+    )
     template = (TEMPLATE_DIR / "details.html").read_text(encoding="utf-8")
     body = Template(template).safe_substitute(
-        title=html.escape(entry.summary),
+        title=html.escape(entry.summary) + (" (ignored)" if entry.ignored else ""),
         occurrences=entry.occurrences,
         last_seen=html.escape(entry.last_seen),
         incident=incident_html,
         analysis=analysis_html,
-        name=html.escape(name),
+        actions=actions,
     )
     return body.encode("utf-8")
 
@@ -248,10 +334,31 @@ def start_http_server(directory: Path, *, port: int = 8000) -> ThreadingHTTPServ
                 self.send_header("Location", "/")
                 self.end_headers()
                 return
+            if path.startswith("/ignore/"):
+                name = path.split("/", 2)[2]
+                ignore_problem(directory, name)
+                self.send_response(303)
+                self.send_header("Location", f"/details/{name}")
+                self.end_headers()
+                return
+            if path.startswith("/unignore/"):
+                name = path.split("/", 2)[2]
+                unignore_problem(directory, name)
+                self.send_response(303)
+                self.send_header("Location", f"/details/{name}")
+                self.end_headers()
+                return
+            if path.startswith("/reanalyze/"):
+                name = path.split("/", 2)[2]
+                new_name = reanalyze_problem(directory, name)
+                self.send_response(303)
+                self.send_header("Location", f"/details/{new_name or name}")
+                self.end_headers()
+                return
             if path == "" or path == "/":
                 problems = _load_problems(directory)
                 entries = [
-                    (p.summary, p.occurrences, p.last_seen, key)
+                    (p.summary, p.occurrences, p.last_seen, key, p.ignored)
                     for key, p in problems.items()
                 ]
                 entries.sort(key=lambda x: x[1], reverse=True)
@@ -313,6 +420,9 @@ def start_http_server(directory: Path, *, port: int = 8000) -> ThreadingHTTPServ
 __all__ = [
     "list_problems",
     "delete_problem",
+    "ignore_problem",
+    "unignore_problem",
+    "reanalyze_problem",
     "render_index",
     "render_details",
     "start_http_server",
