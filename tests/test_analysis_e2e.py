@@ -120,7 +120,14 @@ def test_end_to_end_problem_flow(tmp_path: Path) -> None:
         server, url = await _serve(events)
         try:
             await asyncio.wait_for(
-                monitor(url, token="t", problem_dir=tmp_path, llm=llm, limit=2),
+                monitor(
+                    url,
+                    token="t",
+                    problem_dir=tmp_path,
+                    llm=llm,
+                    limit=2,
+                    batch_seconds=0,
+                ),
                 timeout=360,
             )
         finally:
