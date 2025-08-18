@@ -117,6 +117,7 @@ def test_monitor_automation_failure(tmp_path: Path) -> None:
                         problem_dir=problem_dir,
                         llm=MockLLM(),
                         limit=3,
+                        batch_seconds=0,
                     ),
                     timeout=60,
                 )

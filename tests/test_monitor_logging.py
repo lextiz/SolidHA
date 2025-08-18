@@ -55,7 +55,14 @@ def test_logging_success_and_existing(
         server, url = await _serve(events)
         try:
             await asyncio.wait_for(
-                monitor(url, token="t", problem_dir=tmp_path, llm=llm, limit=2),
+                monitor(
+                    url,
+                    token="t",
+                    problem_dir=tmp_path,
+                    llm=llm,
+                    limit=2,
+                    batch_seconds=0,
+                ),
                 timeout=3,
             )
         finally:
@@ -107,6 +114,7 @@ def test_logging_analysis_failure(
                     problem_dir=tmp_path,
                     llm=FailingLLM(),
                     limit=1,
+                    batch_seconds=0,
                 ),
                 timeout=3,
             )
