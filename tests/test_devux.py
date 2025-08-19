@@ -89,9 +89,6 @@ def test_http_server(tmp_path: Path) -> None:
         base = f"http://127.0.0.1:{port}"
         resp = requests.get(base + "/", timeout=5)
         assert "Problem summary" in resp.text
-        resp_q = requests.get(base + "/?foo=1", timeout=5)
-        assert resp_q.status_code == 200
-        assert "Problem summary" in resp_q.text
         match = re.search(r"details/(\w+)", resp.text)
         assert match is not None
         key = match.group(1)

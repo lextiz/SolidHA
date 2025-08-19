@@ -13,7 +13,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from string import Template
 from typing import Any
-from urllib.parse import urlsplit
 
 from .llm import LLM, create_llm
 from .parse import parse_result
@@ -336,7 +335,7 @@ def start_http_server(directory: Path, *, port: int = 8000) -> ThreadingHTTPServ
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: D401 - HTTP handler
-            path = urlsplit(self.path).path.rstrip("/")
+            path = self.path.rstrip("/")
             if path.startswith("/delete/"):
                 name = path.split("/", 2)[2]
                 delete_problem(directory, name)
@@ -416,9 +415,8 @@ def start_http_server(directory: Path, *, port: int = 8000) -> ThreadingHTTPServ
             self.wfile.write(body)
 
         def do_DELETE(self) -> None:  # noqa: D401 - HTTP handler
-            path = urlsplit(self.path).path
-            if path.startswith("/delete/"):
-                name = path.split("/", 2)[2]
+            if self.path.startswith("/delete/"):
+                name = self.path.split("/", 2)[2]
                 delete_problem(directory, name)
                 self.send_response(200)
                 self.end_headers()
