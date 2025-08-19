@@ -12,8 +12,11 @@ from agent.llm.mock import MockLLM
 from agent.problems import monitor
 
 
-def _event(event_type: str, data: dict) -> dict:
-    return {"type": "event", "event": {"event_type": event_type, "data": data}}
+def _event(event_type: str, data: dict, *, time_fired: str | None = None) -> dict:
+    event = {"event_type": event_type, "data": data}
+    if time_fired is not None:
+        event["time_fired"] = time_fired
+    return {"type": "event", "event": event}
 
 
 async def _serve(events: list[dict]) -> tuple[Any, str]:
@@ -22,7 +25,8 @@ async def _serve(events: list[dict]) -> tuple[Any, str]:
         await ws.recv()  # auth
         await ws.send(json.dumps({"type": "auth_ok"}))
         await ws.recv()  # subscribe events
-        await ws.recv()  # supervisor subscribe
+        msg = json.loads(await ws.recv())  # supervisor subscribe
+        assert "id" in msg
         for evt in events:
             await ws.send(json.dumps(evt))
             await asyncio.sleep(0)
@@ -120,7 +124,49 @@ def test_monitor_batches_events(tmp_path: Path) -> None:
     assert llm.calls == 1
     files = sorted(tmp_path.glob("problems_*.jsonl"))
     lines = [json.loads(line) for line in files[0].read_text().splitlines()]
-    assert len(lines[0]["event"]["events"]) == 2
+    assert len(lines) == 1
+    record = lines[0]
+    assert record["trigger_type"] == "automation_failure,entity_unavailable"
+    assert len(record["event"]["events"]) == 2
+    assert all("trigger_type" in e for e in record["event"]["events"])
+
+
+def test_monitor_separates_distant_events(tmp_path: Path) -> None:
+    events = [
+        _event(
+            "system_log_event",
+            {"level": 40},
+            time_fired="2025-01-01T00:00:00+00:00",
+        ),
+        _event(
+            "state_changed",
+            {"new_state": {"state": "unavailable"}},
+            time_fired="2025-01-01T00:00:02+00:00",
+        ),
+    ]
+
+    async def run_test() -> None:
+        server, url = await _serve(events)
+        try:
+            await asyncio.wait_for(
+                monitor(
+                    url,
+                    token="t",
+                    problem_dir=tmp_path,
+                    llm=MockLLM(),
+                    limit=2,
+                    batch_seconds=1,
+                ),
+                timeout=5,
+            )
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    asyncio.run(run_test())
+    files = sorted(tmp_path.glob("problems_*.jsonl"))
+    lines = [json.loads(line) for line in files[0].read_text().splitlines()]
+    assert len(lines) == 2
 
 
 def test_monitor_records_trigger_types(tmp_path: Path) -> None:
