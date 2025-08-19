@@ -178,7 +178,7 @@ async def monitor(
     llm: LLM | None = None,
     analysis_rate_seconds: float = 0.0,
     analysis_max_lines: int | None = None,
-    batch_seconds: float = 1.0,
+    batch_seconds: float = 2.0,
 ) -> None:
     """Observe events and analyze problems in a single loop."""
 
@@ -197,7 +197,6 @@ async def monitor(
         kwargs["additional_headers"] = headers
 
     last_analysis = 0.0
-    last_time_fired: datetime | None = None
 
     async def handle_batch(events: list[dict[str, Any]]) -> None:
         nonlocal last_analysis, processed, stop
@@ -218,21 +217,14 @@ async def monitor(
 
         etype = events[0].get("event_type")
         edata = events[0].get("data", {})
-        triggers_set: set[str] = set()
-        for e in events:
-            t = e.get("trigger_type")
-            if isinstance(t, str):
-                triggers_set.add(t)
-        triggers = sorted(triggers_set)
-        trigger = ",".join(triggers) if triggers else None
+        trigger = events[0].get("trigger_type")
         if matched is None:
             LOGGER.warning("New problem found: type=%s data=%s", etype, edata)
             record: dict[str, Any] = {
                 "event": event_ctx,
                 "occurrence": 1,
+                "trigger_type": trigger,
             }
-            if trigger:
-                record["trigger_type"] = trigger
             now = asyncio.get_event_loop().time()
             delay = last_analysis + analysis_rate_seconds - now
             if delay > 0:
@@ -271,9 +263,8 @@ async def monitor(
             record = {
                 "event": event_ctx,
                 "occurrence": matched["count"],
+                "trigger_type": trigger,
             }
-            if trigger:
-                record["trigger_type"] = trigger
 
         problem_logger.write(record)
         processed += 1
@@ -287,7 +278,7 @@ async def monitor(
             async with websockets.connect(url, **kwargs) as ws:
                 await _authenticate(ws, token)
                 await ws.send(json.dumps({"id": 1, "type": "subscribe_events"}))
-                await ws.send(json.dumps({"id": 2, "type": "supervisor/subscribe"}))
+                await ws.send(json.dumps({"type": "supervisor/subscribe"}))
                 async for message in ws:
                     if stop:
                         break
@@ -297,11 +288,6 @@ async def monitor(
                     event = data.get("event", {})
                     etype = event.get("event_type")
                     edata = event.get("data", {})
-                    time_str = event.get("time_fired")
-                    evt_time = None
-                    if isinstance(time_str, str):
-                        with contextlib.suppress(ValueError):
-                            evt_time = datetime.fromisoformat(time_str)
 
                     trigger_type: str | None = None
 
@@ -336,12 +322,6 @@ async def monitor(
 
                     if trigger_type is None:
                         continue
-
-                    if evt_time is not None and last_time_fired is not None:
-                        if (evt_time - last_time_fired).total_seconds() > batch_seconds:
-                            await batcher.flush()
-                    if evt_time is not None:
-                        last_time_fired = evt_time
 
                     event["trigger_type"] = trigger_type
                     batcher.add(event)
