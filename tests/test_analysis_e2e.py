@@ -22,7 +22,8 @@ async def _serve(events: list[dict]) -> tuple[Any, str]:
         await ws.recv()  # auth
         await ws.send(json.dumps({"type": "auth_ok"}))
         await ws.recv()  # subscribe events
-        await ws.recv()  # supervisor subscribe
+        msg = json.loads(await ws.recv())  # supervisor subscribe
+        assert "id" in msg
         for evt in events:
             await ws.send(json.dumps(evt))
         await asyncio.sleep(0.1)
