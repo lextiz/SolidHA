@@ -108,12 +108,8 @@ class EventBatcher:
         await asyncio.sleep(self.window)
         events = self._events
         self._events = []
+        self._task = None
         await self.callback(events)
-        if self._events:
-            loop = asyncio.get_event_loop()
-            self._task = loop.create_task(self._run())
-        else:
-            self._task = None
 
     async def flush(self) -> None:
         if self._task is not None:
