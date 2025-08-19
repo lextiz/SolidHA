@@ -121,6 +121,7 @@ def test_monitor_batches_events(tmp_path: Path) -> None:
     files = sorted(tmp_path.glob("problems_*.jsonl"))
     lines = [json.loads(line) for line in files[0].read_text().splitlines()]
     assert len(lines[0]["event"]["events"]) == 2
+    assert lines[0]["trigger_type"] == "automation_failure,entity_unavailable"
 
 
 def test_monitor_records_trigger_types(tmp_path: Path) -> None:

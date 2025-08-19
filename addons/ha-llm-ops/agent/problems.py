@@ -99,6 +99,23 @@ class EventBatcher:
             loop = asyncio.get_event_loop()
             self._immediate.append(loop.create_task(self.callback([event])))
             return
+
+        if self._events:
+            prev = self._parse_time(self._events[-1])
+            curr = self._parse_time(event)
+            if (
+                prev is not None
+                and curr is not None
+                and (curr - prev).total_seconds() > self.window
+            ):
+                loop = asyncio.get_event_loop()
+                events = self._events
+                self._events = []
+                if self._task is not None:
+                    self._task.cancel()
+                    self._task = None
+                self._immediate.append(loop.create_task(self.callback(events)))
+
         self._events.append(event)
         if self._task is None:
             loop = asyncio.get_event_loop()
@@ -110,6 +127,14 @@ class EventBatcher:
         self._events = []
         self._task = None
         await self.callback(events)
+
+    @staticmethod
+    def _parse_time(event: dict[str, Any]) -> datetime | None:
+        time_fired = event.get("time_fired")
+        if isinstance(time_fired, str):
+            with contextlib.suppress(ValueError):
+                return datetime.fromisoformat(time_fired)
+        return None
 
     async def flush(self) -> None:
         if self._task is not None:
@@ -178,7 +203,7 @@ async def monitor(
     llm: LLM | None = None,
     analysis_rate_seconds: float = 0.0,
     analysis_max_lines: int | None = None,
-    batch_seconds: float = 2.0,
+    batch_seconds: float = 1.0,
 ) -> None:
     """Observe events and analyze problems in a single loop."""
 
@@ -217,7 +242,10 @@ async def monitor(
 
         etype = events[0].get("event_type")
         edata = events[0].get("data", {})
-        trigger = events[0].get("trigger_type")
+        triggers = sorted(
+            {str(e["trigger_type"]) for e in events if "trigger_type" in e}
+        )
+        trigger = ",".join(triggers) if triggers else None
         if matched is None:
             LOGGER.warning("New problem found: type=%s data=%s", etype, edata)
             record: dict[str, Any] = {
@@ -278,7 +306,7 @@ async def monitor(
             async with websockets.connect(url, **kwargs) as ws:
                 await _authenticate(ws, token)
                 await ws.send(json.dumps({"id": 1, "type": "subscribe_events"}))
-                await ws.send(json.dumps({"type": "supervisor/subscribe"}))
+                await ws.send(json.dumps({"id": 2, "type": "supervisor/subscribe"}))
                 async for message in ws:
                     if stop:
                         break

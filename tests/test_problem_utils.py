@@ -78,3 +78,24 @@ def test_event_batcher_flush_pending() -> None:
 
     asyncio.run(run())
     assert calls == [[{"a": 1}]]
+
+
+def test_event_batcher_splits_on_time() -> None:
+    calls: list[list[dict]] = []
+
+    async def callback(batch: list[dict]) -> None:
+        calls.append(batch)
+
+    batcher = problems.EventBatcher(1.0, callback)
+
+    async def run() -> None:
+        batcher.add({"time_fired": "2025-08-19T07:40:30+00:00"})
+        batcher.add({"time_fired": "2025-08-19T07:40:30.5+00:00"})
+        batcher.add({"time_fired": "2025-08-19T07:40:32+00:00"})
+        await asyncio.sleep(0)
+        await batcher.flush()
+
+    asyncio.run(run())
+    assert len(calls) == 2
+    assert len(calls[0]) == 2
+    assert len(calls[1]) == 1
