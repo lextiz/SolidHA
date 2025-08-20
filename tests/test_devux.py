@@ -3,6 +3,7 @@ import json
 import re
 import time
 from pathlib import Path
+from typing import Any
 
 import requests
 
@@ -169,3 +170,51 @@ def test_ignore_and_reanalyze(tmp_path: Path, monkeypatch) -> None:
         assert list(devux._load_problems(tmp_path)) == [new_key]
     finally:
         server.shutdown()
+
+
+def test_load_problems_keeps_first_and_last_event(tmp_path: Path) -> None:
+    result = _sample_result()
+    rec1 = _record("2024-01-01T00:00:00Z", 1, result, {"msg": "foo1"})
+    rec2 = _record("2024-01-02T00:00:00Z", 2, extra={"msg": "foo2"})
+    rec3 = _record("2024-01-03T00:00:00Z", 3, extra={"msg": "foo3"})
+    path = tmp_path / "problems_1.jsonl"
+    path.write_text(f"{rec1}\n{rec2}\n{rec3}\n", encoding="utf-8")
+
+    problems = devux._load_problems(tmp_path)
+    key, entry = next(iter(problems.items()))
+    assert entry.occurrences == 3
+    assert len(entry.events) == 2
+    assert "foo1" in entry.events[0]
+    assert "foo3" in entry.events[1]
+
+
+def test_reanalyze_uses_last_event(tmp_path: Path, monkeypatch) -> None:
+    result = _sample_result()
+    rec1 = _record("2024-01-01T00:00:00Z", 1, result, {"msg": "foo1"})
+    rec2 = _record("2024-01-02T00:00:00Z", 2, extra={"msg": "foo2"})
+    rec3 = _record("2024-01-03T00:00:00Z", 3, extra={"msg": "foo3"})
+    path = tmp_path / "problems_1.jsonl"
+    path.write_text(f"{rec1}\n{rec2}\n{rec3}\n", encoding="utf-8")
+
+    problems = devux._load_problems(tmp_path)
+    key = next(iter(problems))
+
+    captured: dict[str, Any] = {}
+
+    class DummyLogger:
+        def __init__(self, directory: Path) -> None:  # noqa: D401
+            self.directory = directory
+
+        def write(self, record: dict[str, Any]) -> None:  # noqa: D401
+            captured["event"] = record["event"]
+
+    class DummyLLM:
+        def generate(self, prompt: str, *, timeout: float) -> str:  # noqa: D401
+            return json.dumps(result)
+
+    monkeypatch.setattr(devux, "ProblemLogger", DummyLogger)
+    monkeypatch.setattr(devux, "create_llm", lambda: DummyLLM())
+
+    devux.reanalyze_problem(tmp_path, key)
+
+    assert captured["event"]["msg"] == "foo3"
