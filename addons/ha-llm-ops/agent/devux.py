@@ -58,6 +58,17 @@ def _event_ts(event: dict[str, Any]) -> str:
     return ""
 
 
+def _add_event(entry: _ProblemEntry, event_json: str) -> None:
+    """Store the first and latest event for ``entry``."""
+
+    if not entry.events:
+        entry.events.append(event_json)
+    elif len(entry.events) == 1:
+        entry.events.append(event_json)
+    else:
+        entry.events[1] = event_json
+
+
 def _load_problems(directory: Path) -> dict[str, _ProblemEntry]:
     """Return mapping of problem key to latest info and events."""
 
@@ -102,7 +113,7 @@ def _load_problems(directory: Path) -> dict[str, _ProblemEntry]:
                         ignored=(directory / f"{key}.ignored").exists(),
                     )
                     mapping[key] = entry
-                entry.events.append(event_json)
+                _add_event(entry, event_json)
                 entry.occurrences = record.get("occurrence", 1)
                 entry.analysis = result
                 entry.summary = str(
@@ -121,7 +132,7 @@ def _load_problems(directory: Path) -> dict[str, _ProblemEntry]:
                     break
             if matched is None:
                 continue
-            matched.events.append(event_json)
+            _add_event(matched, event_json)
             matched.occurrences = record.get("occurrence", matched.occurrences + 1)
             if ts:
                 matched.last_seen = ts
