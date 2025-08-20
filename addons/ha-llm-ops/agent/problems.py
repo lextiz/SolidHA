@@ -8,11 +8,13 @@ import inspect
 import json
 import logging
 import re
+import threading
 from collections.abc import Callable, Coroutine, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
 
+import requests
 import websockets
 from websockets.exceptions import ConnectionClosed, InvalidHandshake
 
@@ -301,80 +303,122 @@ async def monitor(
 
     batcher = EventBatcher(batch_seconds, handle_batch)
 
-    while True:
-        try:
-            async with websockets.connect(url, **kwargs) as ws:
-                await _authenticate(ws, token)
-                await ws.send(json.dumps({"id": 1, "type": "subscribe_events"}))
-                await ws.send(json.dumps({"id": 2, "type": "supervisor/subscribe"}))
-                async for message in ws:
-                    if stop:
-                        break
-                    data = json.loads(message)
-                    if data.get("type") != "event":
-                        continue
-                    event = data.get("event", {})
-                    etype = event.get("event_type")
-                    edata = event.get("data", {})
+    if url.startswith("ws"):
+        while True:
+            try:
+                async with websockets.connect(url, **kwargs) as ws:
+                    await _authenticate(ws, token)
+                    await ws.send(json.dumps({"id": 1, "type": "subscribe_events"}))
+                    await ws.send(json.dumps({"id": 2, "type": "supervisor/subscribe"}))
+                    async for message in ws:
+                        if stop:
+                            break
+                        data = json.loads(message)
+                        if data.get("type") != "event":
+                            continue
+                        event = data.get("event", {})
+                        etype = event.get("event_type")
+                        edata = event.get("data", {})
 
-                    trigger_type: str | None = None
+                        trigger_type: str | None = None
 
-                    if etype == "system_log_event":
-                        level = edata.get("level")
-                        if isinstance(level, int):
-                            if level >= 40:
-                                trigger_type = "error_log"
-                        elif isinstance(level, str):
-                            if level.upper() in {"ERROR", "CRITICAL"}:
-                                trigger_type = "error_log"
-                    elif etype == "trace":
-                        if _contains_failure(edata):
-                            trigger_type = "automation_failure"
-                    elif etype == "state_changed":
-                        new_state = edata.get("new_state") or {}
-                        if (
-                            isinstance(new_state, dict)
-                            and new_state.get("state") == "unavailable"
-                        ):
-                            trigger_type = "entity_unavailable"
-                    elif etype == "supervisor_event":
-                        if edata.get("event") == "addon":
-                            log = edata.get("data", {})
-                            level = log.get("level")
+                        if etype == "system_log_event":
+                            level = edata.get("level")
                             if isinstance(level, int):
                                 if level >= 40:
                                     trigger_type = "error_log"
                             elif isinstance(level, str):
                                 if level.upper() in {"ERROR", "CRITICAL"}:
                                     trigger_type = "error_log"
+                        elif etype == "trace":
+                            if _contains_failure(edata):
+                                trigger_type = "automation_failure"
+                        elif etype == "state_changed":
+                            new_state = edata.get("new_state") or {}
+                            if (
+                                isinstance(new_state, dict)
+                                and new_state.get("state") == "unavailable"
+                            ):
+                                trigger_type = "entity_unavailable"
+                        elif etype == "supervisor_event":
+                            if edata.get("event") == "addon":
+                                log = edata.get("data", {})
+                                level = log.get("level")
+                                if isinstance(level, int):
+                                    if level >= 40:
+                                        trigger_type = "error_log"
+                                elif isinstance(level, str):
+                                    if level.upper() in {"ERROR", "CRITICAL"}:
+                                        trigger_type = "error_log"
 
-                    if trigger_type is None:
-                        continue
+                        if trigger_type is None:
+                            continue
 
-                    event["trigger_type"] = trigger_type
-                    batcher.add(event)
-                await batcher.flush()
-                if stop or limit == 0:
-                    return
-        except InvalidHandshake:  # pragma: no cover - handshake retry path
-            kwargs.pop("subprotocols", None)
-            continue
-        except ConnectionClosed as err:  # pragma: no cover - network error path
-            logging.exception("WebSocket error: %s", err)
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 30)
-        except AuthenticationError as err:  # pragma: no cover - auth error path
-            logging.exception("WebSocket error: %s", err)
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 30)
-        except Exception as err:  # pragma: no cover - network error path
-            logging.exception("WebSocket error: %s", err)
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 30)
-        else:  # pragma: no cover - connection closed gracefully
-            backoff = 1
-        if stop or limit == 0:
-            break
+                        event["trigger_type"] = trigger_type
+                        batcher.add(event)
+                    await batcher.flush()
+                    if stop or limit == 0:
+                        return
+            except InvalidHandshake:  # pragma: no cover - handshake retry path
+                kwargs.pop("subprotocols", None)
+                continue
+            except ConnectionClosed as err:  # pragma: no cover - network error path
+                logging.exception("WebSocket error: %s", err)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 30)
+            except AuthenticationError as err:  # pragma: no cover - auth error path
+                logging.exception("WebSocket error: %s", err)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 30)
+            except Exception as err:  # pragma: no cover - network error path
+                logging.exception("WebSocket error: %s", err)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 30)
+            else:  # pragma: no cover - connection closed gracefully
+                backoff = 1
+            if stop or limit == 0:
+                break
+    else:
+        loop = asyncio.get_event_loop()
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        def _reader() -> None:
+            try:
+                with requests.get(
+                    url, headers=headers, stream=True, timeout=30
+                ) as resp:
+                    resp.raise_for_status()
+                    for raw in resp.iter_lines():
+                        if not raw:
+                            continue  # pragma: no cover - defensive
+                        line = raw.decode("utf-8", "ignore")
+                        asyncio.run_coroutine_threadsafe(queue.put(line), loop)
+            except Exception as err:  # pragma: no cover - network error path
+                logging.exception("Log stream error: %s", err)
+            finally:
+                asyncio.run_coroutine_threadsafe(queue.put(None), loop)
+
+        threading.Thread(target=_reader, daemon=True).start()
+
+        while True:
+            if stop:  # pragma: no cover - limit path
+                break
+            line = await queue.get()
+            if line is None:
+                break
+            trigger_type = None
+            upper = line.upper()
+            if "ERROR" in upper or "CRITICAL" in upper:
+                trigger_type = "error_log"
+            if trigger_type is None:
+                continue
+            event = {
+                "event_type": "log",
+                "data": {"line": line},
+                "trigger_type": trigger_type,
+            }
+            batcher.add(event)
+        await batcher.flush()
 
 
 __all__ = ["AuthenticationError", "monitor"]
