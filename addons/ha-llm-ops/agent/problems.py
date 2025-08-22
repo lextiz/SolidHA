@@ -193,6 +193,163 @@ async def _authenticate(ws: Any, token: str) -> None:
         raise AuthenticationError(f"authentication failed: {pretty}")
 
 
+def _get_trigger_type(etype: str | None, edata: dict[str, Any]) -> str | None:
+    """Return the trigger type for a Home Assistant event."""
+
+    if etype == "system_log_event":
+        level = edata.get("level")
+        if isinstance(level, int):
+            if level >= 40:
+                return "error_log"
+        elif isinstance(level, str):
+            if level.upper() in {"ERROR", "CRITICAL"}:
+                return "error_log"
+    elif etype == "trace":
+        if _contains_failure(edata):
+            return "automation_failure"
+    elif etype == "state_changed":
+        new_state = edata.get("new_state") or {}
+        if isinstance(new_state, dict) and new_state.get("state") == "unavailable":
+            return "entity_unavailable"
+    elif etype == "supervisor_event":
+        if edata.get("event") == "addon":
+            log = edata.get("data", {})
+            level = log.get("level")
+            if isinstance(level, int):
+                if level >= 40:
+                    return "error_log"
+            elif isinstance(level, str):
+                if level.upper() in {"ERROR", "CRITICAL"}:
+                    return "error_log"
+    return None
+
+
+def _match_problem(
+    event_ctx: dict[str, Any], problems: list[dict[str, Any]]
+) -> tuple[dict[str, Any] | None, str]:
+    """Find a matching problem pattern for ``event_ctx``."""
+
+    event_json = json.dumps(event_ctx, sort_keys=True, indent=2)
+    event_json_compact = json.dumps(event_ctx, sort_keys=True, separators=(",", ":"))
+    for problem in problems:
+        if problem["pattern"].search(event_json) or problem["pattern"].search(
+            event_json_compact
+        ):
+            return problem, event_json
+    return None, event_json
+
+
+async def _analyze_event(
+    event_ctx: dict[str, Any],
+    llm: LLM,
+    last_analysis: float,
+    rate_seconds: float,
+    max_lines: int | None,
+    event_json: str,
+) -> tuple[dict[str, Any], float, re.Pattern[str] | None]:
+    """Run LLM analysis for a new problem event."""
+
+    record: dict[str, Any] = {}
+    now = asyncio.get_event_loop().time()
+    delay = last_analysis + rate_seconds - now
+    if delay > 0:
+        await asyncio.sleep(delay)
+    LOGGER.debug("Sending problem for analysis: event=%s", event_json)
+    try:
+        prompt = build_rca_prompt(event_ctx, max_lines=max_lines)
+        raw = llm.generate(prompt, timeout=300)
+        result = parse_result(raw)
+    except Exception:  # pragma: no cover - error path
+        LOGGER.exception("Analysis failed for event %s", event_json)
+        record["error"] = "analysis_failed"
+        return record, last_analysis, None
+
+    last_analysis = asyncio.get_event_loop().time()
+    record["result"] = result.model_dump()
+    LOGGER.info(
+        "Analysis successful: summary=%s pattern=%s",
+        result.summary,
+        result.recurrence_pattern,
+    )
+    try:
+        pattern = re.compile(result.recurrence_pattern, re.DOTALL)
+    except re.error:  # pragma: no cover - defensive
+        pattern = re.compile(re.escape(result.recurrence_pattern), re.DOTALL)
+    return record, last_analysis, pattern
+
+
+class BatchHandler:
+    """Process batches of Home Assistant events."""
+
+    def __init__(
+        self,
+        *,
+        problems: list[dict[str, Any]],
+        problem_logger: ProblemLogger,
+        llm: LLM,
+        analysis_rate_seconds: float,
+        analysis_max_lines: int | None,
+        limit: int | None,
+    ) -> None:
+        self.problems = problems
+        self.problem_logger = problem_logger
+        self.llm = llm
+        self.analysis_rate_seconds = analysis_rate_seconds
+        self.analysis_max_lines = analysis_max_lines
+        self.limit = limit
+        self.last_analysis = 0.0
+        self.processed = 0
+        self.stop = False
+
+    async def handle(self, events: list[dict[str, Any]]) -> None:
+        event_ctx = events[0] if len(events) == 1 else {"events": events}
+        matched, event_json = _match_problem(event_ctx, self.problems)
+
+        etype = events[0].get("event_type")
+        edata = events[0].get("data", {})
+        triggers = sorted(
+            {str(e["trigger_type"]) for e in events if "trigger_type" in e}
+        )
+        trigger = ",".join(triggers) if triggers else None
+
+        if matched is None:
+            LOGGER.warning("New problem found: type=%s data=%s", etype, edata)
+            record: dict[str, Any] = {
+                "event": event_ctx,
+                "occurrence": 1,
+                "trigger_type": trigger,
+            }
+            new_record, self.last_analysis, pattern = await _analyze_event(
+                event_ctx,
+                self.llm,
+                self.last_analysis,
+                self.analysis_rate_seconds,
+                self.analysis_max_lines,
+                event_json,
+            )
+            record.update(new_record)
+            if pattern is not None:
+                self.problems.append({"pattern": pattern, "count": 1})
+        else:
+            matched["count"] += 1
+            LOGGER.info(
+                "Existing problem occurred again: pattern=%s occurrence=%s type=%s",
+                matched["pattern"].pattern,
+                matched["count"],
+                etype,
+            )
+            record = {
+                "event": event_ctx,
+                "occurrence": matched["count"],
+                "trigger_type": trigger,
+            }
+
+        self.problem_logger.write(record)
+        self.processed += 1
+        if self.limit is not None and self.processed >= self.limit:
+            self.stop = True
+
+
 async def monitor(
     url: str,
     token: str,
@@ -211,8 +368,6 @@ async def monitor(
     llm = llm or create_llm()
     problems = _load_problems(problem_dir)
     backoff = 1
-    processed = 0
-    stop = False
 
     headers = {"Authorization": f"Bearer {token}"}
     kwargs: dict[str, Any] = {"subprotocols": ["homeassistant"]}
@@ -221,85 +376,16 @@ async def monitor(
     else:
         kwargs["additional_headers"] = headers
 
-    last_analysis = 0.0
+    handler = BatchHandler(
+        problems=problems,
+        problem_logger=problem_logger,
+        llm=llm,
+        analysis_rate_seconds=analysis_rate_seconds,
+        analysis_max_lines=analysis_max_lines,
+        limit=limit,
+    )
 
-    async def handle_batch(events: list[dict[str, Any]]) -> None:
-        nonlocal last_analysis, processed, stop
-        event_ctx: dict[str, Any] = (
-            events[0] if len(events) == 1 else {"events": events}
-        )
-        event_json = json.dumps(event_ctx, sort_keys=True, indent=2)
-        event_json_compact = json.dumps(
-            event_ctx, sort_keys=True, separators=(",", ":")
-        )
-        matched: dict[str, Any] | None = None
-        for problem in problems:
-            if problem["pattern"].search(event_json) or problem["pattern"].search(
-                event_json_compact
-            ):
-                matched = problem
-                break
-
-        etype = events[0].get("event_type")
-        edata = events[0].get("data", {})
-        triggers = sorted(
-            {str(e["trigger_type"]) for e in events if "trigger_type" in e}
-        )
-        trigger = ",".join(triggers) if triggers else None
-        if matched is None:
-            LOGGER.warning("New problem found: type=%s data=%s", etype, edata)
-            record: dict[str, Any] = {
-                "event": event_ctx,
-                "occurrence": 1,
-                "trigger_type": trigger,
-            }
-            now = asyncio.get_event_loop().time()
-            delay = last_analysis + analysis_rate_seconds - now
-            if delay > 0:
-                await asyncio.sleep(delay)
-            LOGGER.debug("Sending problem for analysis: event=%s", event_json)
-            try:
-                prompt = build_rca_prompt(event_ctx, max_lines=analysis_max_lines)
-                raw = llm.generate(prompt, timeout=300)
-                result = parse_result(raw)
-            except Exception:  # pragma: no cover - error path
-                LOGGER.exception("Analysis failed for event %s", event_json)
-                record["error"] = "analysis_failed"
-            else:
-                last_analysis = asyncio.get_event_loop().time()
-                record["result"] = result.model_dump()
-                LOGGER.info(
-                    "Analysis successful: summary=%s pattern=%s",
-                    result.summary,
-                    result.recurrence_pattern,
-                )
-                try:
-                    pattern = re.compile(result.recurrence_pattern, re.DOTALL)
-                except re.error:  # pragma: no cover - defensive
-                    pattern = re.compile(
-                        re.escape(result.recurrence_pattern), re.DOTALL
-                    )
-                problems.append({"pattern": pattern, "count": 1})
-        else:
-            matched["count"] += 1
-            LOGGER.info(
-                "Existing problem occurred again: pattern=%s occurrence=%s type=%s",
-                matched["pattern"].pattern,
-                matched["count"],
-                etype,
-            )
-            record = {
-                "event": event_ctx,
-                "occurrence": matched["count"],
-                "trigger_type": trigger,
-            }
-
-        problem_logger.write(record)
-        processed += 1
-        if limit is not None and processed >= limit:
-            stop = True
-
-    batcher = EventBatcher(batch_seconds, handle_batch)
+    batcher = EventBatcher(batch_seconds, handler.handle)
 
     while True:
         try:
@@ -308,7 +394,7 @@ async def monitor(
                 await ws.send(json.dumps({"id": 1, "type": "subscribe_events"}))
                 await ws.send(json.dumps({"id": 2, "type": "supervisor/subscribe"}))
                 async for message in ws:
-                    if stop:
+                    if handler.stop:
                         break
                     data = json.loads(message)
                     if data.get("type") != "event":
@@ -316,45 +402,14 @@ async def monitor(
                     event = data.get("event", {})
                     etype = event.get("event_type")
                     edata = event.get("data", {})
-
-                    trigger_type: str | None = None
-
-                    if etype == "system_log_event":
-                        level = edata.get("level")
-                        if isinstance(level, int):
-                            if level >= 40:
-                                trigger_type = "error_log"
-                        elif isinstance(level, str):
-                            if level.upper() in {"ERROR", "CRITICAL"}:
-                                trigger_type = "error_log"
-                    elif etype == "trace":
-                        if _contains_failure(edata):
-                            trigger_type = "automation_failure"
-                    elif etype == "state_changed":
-                        new_state = edata.get("new_state") or {}
-                        if (
-                            isinstance(new_state, dict)
-                            and new_state.get("state") == "unavailable"
-                        ):
-                            trigger_type = "entity_unavailable"
-                    elif etype == "supervisor_event":
-                        if edata.get("event") == "addon":
-                            log = edata.get("data", {})
-                            level = log.get("level")
-                            if isinstance(level, int):
-                                if level >= 40:
-                                    trigger_type = "error_log"
-                            elif isinstance(level, str):
-                                if level.upper() in {"ERROR", "CRITICAL"}:
-                                    trigger_type = "error_log"
-
+                    trigger_type = _get_trigger_type(etype, edata)
                     if trigger_type is None:
                         continue
 
                     event["trigger_type"] = trigger_type
                     batcher.add(event)
                 await batcher.flush()
-                if stop or limit == 0:
+                if handler.stop or limit == 0:
                     return
         except InvalidHandshake:  # pragma: no cover - handshake retry path
             kwargs.pop("subprotocols", None)
@@ -373,7 +428,7 @@ async def monitor(
             backoff = min(backoff * 2, 30)
         else:  # pragma: no cover - connection closed gracefully
             backoff = 1
-        if stop or limit == 0:
+        if handler.stop or limit == 0:
             break
 
 
