@@ -11,9 +11,7 @@ _RESPONSE = {
     "root_cause": "mock root cause",
     "impact": "mock impact",
     "confidence": 0.42,
-    "candidate_actions": [
-        {"action": "mock action", "rationale": "because tests"}
-    ],
+    "candidate_actions": [{"action": "mock action", "rationale": "because tests"}],
     "risk": "low",
     "tests": ["test check"],
     "recurrence_pattern": "mock error",

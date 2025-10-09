@@ -43,7 +43,7 @@ def test_http_lists_incident_files(devux: ModuleType, tmp_path: Path) -> None:
 
 def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
     inc = tmp_path / "incidents_1.jsonl"
-    inc.write_text("{\"time_fired\":\"2024-01-01T00:00:00+00:00\"}\n", encoding="utf-8")
+    inc.write_text('{"time_fired":"2024-01-01T00:00:00+00:00"}\n', encoding="utf-8")
     ana_record = {
         "incident": str(inc),
         "result": {
@@ -74,7 +74,7 @@ def test_http_root_page(devux: ModuleType, tmp_path: Path) -> None:
 
 def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
     inc = tmp_path / "incidents_1.jsonl"
-    inc.write_text("{\"time_fired\":\"2024-01-01T00:00:00+00:00\"}\n", encoding="utf-8")
+    inc.write_text('{"time_fired":"2024-01-01T00:00:00+00:00"}\n', encoding="utf-8")
     ana_record = {
         "incident": str(inc),
         "result": {
@@ -112,9 +112,7 @@ def test_http_details_page(devux: ModuleType, tmp_path: Path) -> None:
         server.shutdown()
 
 
-def test_http_root_sorted_by_occurrences(
-    devux: ModuleType, tmp_path: Path
-) -> None:
+def test_http_root_sorted_by_occurrences(devux: ModuleType, tmp_path: Path) -> None:
     inc1 = tmp_path / "incidents_1.jsonl"
     inc1.write_text("{}\n{}\n", encoding="utf-8")
     inc2 = tmp_path / "incidents_2.jsonl"

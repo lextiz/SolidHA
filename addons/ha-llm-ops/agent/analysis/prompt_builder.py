@@ -53,11 +53,7 @@ def build_prompt(bundle: ContextBundle) -> Prompt:
     version = _package_version()
     header = f"SolidHA v{version}\n{_GUARDRAILS}\n\n"
 
-    text = (
-        f"{header}"
-        f"Schema:\n{schema_text}\n\n"
-        f"Context:\n{context_text}\n"
-    )
+    text = f"{header}Schema:\n{schema_text}\n\nContext:\n{context_text}\n"
     return Prompt(text=text, schema=schema)
 
 

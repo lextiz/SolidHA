@@ -131,7 +131,7 @@ def render_index(entries: list[tuple[str, int, str, str]]) -> bytes:
             f"<li class='item'><span class='name'>{html.escape(desc)}</span>"
             f"<span class='occurrences'>{occ}</span>"
             f"<span class='timestamp'>{html.escape(last)}</span>"
-            f"<a href=\"details/{html.escape(name)}\">View</a></li>"
+            f'<a href="details/{html.escape(name)}">View</a></li>'
         )
         for desc, occ, last, name in entries
     )
@@ -166,7 +166,7 @@ def render_details(
         if trigger is not None:
             event_json = html.escape(json.dumps(trigger, indent=2, sort_keys=True))
             parts.append(
-                "<li><strong>Trigger Event:</strong><pre>" f"{event_json}" "</pre></li>"
+                f"<li><strong>Trigger Event:</strong><pre>{event_json}</pre></li>"
             )
         parts.extend(
             [
@@ -216,9 +216,9 @@ def render_details(
     else:
         parts.append("<p>No analysis available.</p>")
     analysis_html = "".join(parts)
-    incident_html = "<pre>" + "\n".join(
-        html.escape(line) for line in incident_lines
-    ) + "</pre>"
+    incident_html = (
+        "<pre>" + "\n".join(html.escape(line) for line in incident_lines) + "</pre>"
+    )
     template = (TEMPLATE_DIR / "details.html").read_text(encoding="utf-8")
     body = Template(template).safe_substitute(
         title=title,

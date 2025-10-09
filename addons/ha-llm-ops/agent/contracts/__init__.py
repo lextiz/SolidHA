@@ -3,4 +3,3 @@
 from .rca import CandidateAction, RcaResult
 
 __all__ = ["CandidateAction", "RcaResult"]
-

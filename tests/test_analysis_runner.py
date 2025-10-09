@@ -116,6 +116,7 @@ def test_runner_rotation(tmp_path: Path) -> None:
     total = sum(len(f.read_text().splitlines()) for f in files)
     assert total == 5
 
+
 def test_create_llm_backend_selection(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     assert isinstance(create_llm(), MockLLM)

@@ -13,10 +13,15 @@ def _docker_available() -> bool:
     """Return True if Docker CLI and daemon are available."""
     if shutil.which("docker") is None:
         return False
-    result = subprocess.run([
-        "docker",
-        "info",
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    result = subprocess.run(
+        [
+            "docker",
+            "info",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
     return result.returncode == 0
 
 

@@ -29,4 +29,3 @@ def build_rca_prompt(context: Mapping[str, Any]) -> str:
 
 
 __all__ = ["build_rca_prompt"]
-

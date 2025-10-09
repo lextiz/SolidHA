@@ -27,4 +27,3 @@ def test_vectors(sample_path: str, expect_valid: bool) -> None:
     else:
         with pytest.raises(ValidationError):
             RcaResult.model_validate(data)
-

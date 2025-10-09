@@ -61,4 +61,3 @@ def export_schema(path: Path | None = None) -> Path:
 
 if __name__ == "__main__":  # pragma: no cover - manual utility
     export_schema()
-

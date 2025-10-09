@@ -126,9 +126,7 @@ def test_observe_automation_failure(tmp_path: Path) -> None:
         files = list(incident_dir.glob("incidents_*.jsonl"))
         assert files, "No incident files created"
         lines = [
-            json.loads(line)
-            for file in files
-            for line in file.read_text().splitlines()
+            json.loads(line) for file in files for line in file.read_text().splitlines()
         ]
         assert any(
             (
